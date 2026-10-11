@@ -5,7 +5,8 @@
    Toutes les classes ont les mêmes caractéristiques (config.charBase) :
      - niveau 1 : 50 PV, 0 en force / intelligence / agilité / chance, 0 % de résistance ;
      - chaque niveau : +5 PV et +5 points à répartir (force, agilité, intelligence, chance).
-   Les objets ajoutent caractéristiques, dommages, sagesse, initiative bonus, résistances.
+   Les objets et les panoplies (bonus selon le nombre de pièces portées) ajoutent caractéristiques,
+   puissance, dommages, critiques, soins, sagesse, initiative bonus, résistances.
    Initiative = force + intelligence + agilité + chance + initiative bonus des objets.
    ========================================================================== */
 (function () {
@@ -23,13 +24,25 @@
     cls(i) { return G.classes[G.state.team[i].classId]; },
     avgLevel() { return G.state.team.reduce((s, c) => s + c.level, 0) / G.state.team.length; },
 
-    /** Stats cumulées de l'équipement porté par le personnage i. */
+    /** Panoplies actives du personnage i : [{ set, count, bonus }] (bonus du palier atteint). */
+    activeSets(i) {
+      const worn = {};
+      Object.values(G.state.team[i].equipped).forEach((uid) => {
+        const g = G.Systems.inventory.getGear(uid), set = g && G.items[g.id].set;
+        if (set) worn[set] = (worn[set] || 0) + 1;
+      });
+      return Object.keys(worn).map((id) => {
+        const set = G.sets[id], tiers = Object.keys(set.bonus).map(Number).filter((n) => n <= worn[id]);
+        return { set, count: worn[id], bonus: tiers.length ? set.bonus[Math.max(...tiers)] : null };
+      });
+    },
+
+    /** Stats cumulées de l'équipement porté par le personnage i, bonus de panoplies compris. */
     equipStats(i) {
       const sum = {};
-      Object.values(G.state.team[i].equipped).forEach((uid) => {
-        const st = G.Systems.inventory.instanceStats(G.Systems.inventory.getGear(uid));
-        Object.keys(st).forEach((k) => (sum[k] = (sum[k] || 0) + st[k]));
-      });
+      const add = (st) => Object.keys(st).forEach((k) => (sum[k] = (sum[k] || 0) + st[k]));
+      Object.values(G.state.team[i].equipped).forEach((uid) => add(G.Systems.inventory.instanceStats(G.Systems.inventory.getGear(uid))));
+      this.activeSets(i).forEach((a) => { if (a.bonus) add(a.bonus); });
       return sum;
     },
 
@@ -40,14 +53,14 @@
       const cap = G.Data.config.combat.resistCap;
       const out = {
         vit: b.vit + b.vitPerLevel * (c.level - 1) + (eq.vit || 0),
-        dmg: eq.dmg || 0, sagesse: eq.sagesse || 0,
         resTerre: Math.min(cap, eq.resTerre || 0), resFeu: Math.min(cap, eq.resFeu || 0),
         resEau: Math.min(cap, eq.resEau || 0), resAir: Math.min(cap, eq.resAir || 0),
       };
+      ['pow', 'dmg', 'dmgTerre', 'dmgFeu', 'dmgEau', 'dmgAir', 'crit', 'heal', 'sagesse'].forEach((k) => { out[k] = eq[k] || 0; });
       STATS.forEach((k) => { out[k] = c.stat[k] + (eq[k] || 0); });
       out.initBonus = eq.init || 0;
       out.initiative = out.force + out.intel + out.agi + out.chance + out.initBonus;
-      out.maxHp = Math.round(out.vit);
+      out.maxHp = Math.max(1, Math.round(out.vit));
       return (cache[i] = out);
     },
 

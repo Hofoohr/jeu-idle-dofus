@@ -42,8 +42,9 @@
       return `<tr><td>${L[k].icon} ${STAT_NAMES[k]} <small class="muted">${el.icon} ${el.name}</small></td>
         <td><b>${st[k]}</b> <small class="muted">(${c.stat[k]}${eq[k] ? ` + <span class="pos">${eq[k]}</span>` : ''})</small></td><td class="btn-cell">${btns}</td></tr>`;
     }).join('');
-    const others = ['dmg', 'sagesse', 'resTerre', 'resFeu', 'resEau', 'resAir'].map((k) =>
-      `<tr><td>${L[k].icon} ${L[k].name}</td><td>${st[k]}${L[k].suffix}</td><td></td></tr>`).join('');
+    const others = ['pow', 'dmg', 'dmgTerre', 'dmgFeu', 'dmgEau', 'dmgAir', 'crit', 'heal', 'sagesse', 'resTerre', 'resFeu', 'resEau', 'resAir']
+      .filter((k) => st[k] || ['pow', 'dmg', 'crit', 'resTerre', 'resFeu', 'resEau', 'resAir'].includes(k))
+      .map((k) => `<tr><td>${L[k].icon} ${L[k].name}</td><td>${st[k]}${L[k].suffix}</td><td></td></tr>`).join('');
     const autoOpts = `<option value="">Manuelle</option>` + G.Systems.team.STATS.map((k) => `<option value="${k}" ${c.autoStat === k ? 'selected' : ''}>Auto : ${STAT_NAMES[k]}</option>`).join('');
     return `<div class="panel"><h3>Caractéristiques</h3>
       <div class="points ${c.points > 0 ? 'has' : ''}">⭐ Points à répartir : <b>${c.points}</b></div>
@@ -56,18 +57,20 @@
         ${others}
       </table>
       <small class="muted">Barre d'attaque : +${U.fmtDec(speed, 1)} par tick → 1 action toutes les ${U.fmtDec(cc.atbMax / speed * cc.tickSeconds, 1)} s.
-      Dégâts d'un sort = base × (100 + caractéristique) / 100 + Dommages.</small></div>`;
+      Dégâts d'un sort = base × (100 + caractéristique + Puissance) / 100 + Dommages.</small></div>`;
   }
 
   /** Texte « base → estimé » d'un sort pour le personnage i (stats actuelles, hors résistances). */
   function effectText(i, sp, st) {
-    const off = G.Data.config.combat.statOffset, stat = st[G.Data.elements[sp.element].stat] || 0;
-    const mult = (off + stat) / 100, v = G.F.spellValue(st, sp);
+    const el = G.Data.elements[sp.element];
+    const off = G.Data.config.combat.statOffset, stat = st[el.stat] || 0;
+    const mult = (off + stat + st.pow) / 100, v = G.F.spellValue(st, sp);
+    const flat = st.dmg + (st[el.dmg] || 0);
     const calc = `${sp.power} × ${U.fmtDec(mult, 2)}`;
     if (sp.kind === 'damage') {
-      return `<span class="tag">Base ${sp.power}</span> <span class="tag est">≈ ${Math.round(v + st.dmg)} dégâts${sp.aoe ? ' / cible' : ''}</span> <small>(${calc}${st.dmg ? ` + ${st.dmg} dommages` : ''})</small>`;
+      return `<span class="tag">Base ${sp.power}</span> <span class="tag est">≈ ${Math.round(v + flat)} dégâts${sp.aoe ? ' / cible' : ''}</span> <small>(${calc}${flat ? ` + ${flat} dommages` : ''})</small>`;
     }
-    if (sp.kind === 'heal') return `<span class="tag">Base ${sp.power}</span> <span class="tag est">≈ ${Math.round(v)} PV${sp.aoe ? ' / allié' : ''}</span> <small>(${calc})</small>`;
+    if (sp.kind === 'heal') return `<span class="tag">Base ${sp.power}</span> <span class="tag est">≈ ${Math.round(v + st.heal)} PV${sp.aoe ? ' / allié' : ''}</span> <small>(${calc}${st.heal ? ` + ${st.heal} soins` : ''})</small>`;
     if (sp.kind === 'shield') return `<span class="tag">Base ${sp.power}</span> <span class="tag est">≈ ${Math.round(v)} bouclier${sp.aoe ? ' / allié' : ''}</span> <small>(${calc})</small>`;
     return `<span class="tag est">−${Math.round(sp.value * 100)} % dégâts ennemis, ${sp.duration} actions</span>`;
   }
@@ -79,13 +82,41 @@
       return `<div class="spell-row ${locked ? 'locked' : ''}">
         <span class="rank">${k + 1}</span>
         <span class="mv"><button class="btn sm" ${k === 0 ? 'disabled' : ''} data-act="prio" data-i="${i}" data-id="${id}" data-dir="-1">▲</button><button class="btn sm" ${k === c.priority.length - 1 ? 'disabled' : ''} data-act="prio" data-i="${i}" data-id="${id}" data-dir="1">▼</button></span>
-        <div class="grow"><b>${sp.icon} ${sp.name}</b> ${locked ? `<span class="tag lock">🔒 niv. ${G.Systems.team.unlockLevel(i, id)}</span>` : ''}
+        ${G.spellIconHtml(sp, 'sm')}
+        <div class="grow"><b>${sp.name}</b> ${locked ? `<span class="tag lock">🔒 niv. ${G.Systems.team.unlockLevel(i, id)}</span>` : ''}
           ${sp.cd === 0 ? '<span class="tag">attaque de base</span>' : `<span class="tag">recharge ${sp.cd}</span>`} <span class="tag">${el.icon} ${el.name}</span><br>
-          <small class="muted">${sp.desc}</small>${locked ? '' : `<div class="eff">${effectText(i, sp, st)}</div>`}</div></div>`;
+          <small class="muted">${U.esc(sp.desc)}</small>${sp.note ? `<br><small class="adapt">${U.esc(sp.note)}</small>` : ''}${locked ? '' : `<div class="eff">${effectText(i, sp, st)}</div>`}</div></div>`;
     }).join('');
     return `<div class="panel"><h3>Sorts</h3>
-      <p class="muted" style="margin-top:0"><small>Parmi les sorts prêts (recharge finie et utiles), le mieux classé est lancé. Soin : un allié sous 50 % · Bouclier : un allié sans bouclier · Zone : au moins 2 ennemis.</small></p>
+      <p class="muted" style="margin-top:0"><small>Parmi les sorts prêts (recharge finie et utiles), le mieux classé est lancé. Soin : un allié sous 50 % · Bouclier : un allié sans bouclier · Zone : au moins 2 ennemis.<br>Sorts de Dofus Unity : seuls leurs dégâts, soins et boucliers sont simulés ; les effets secondaires (poussée, retrait de PA/PM, états…) sont ignorés.</small></p>
       ${rows}</div>`;
+  }
+
+  const statText = (b) => Object.keys(b).map((k) => `${G.Data.statLabels[k].icon} +${b[k]}${G.Data.statLabels[k].suffix} ${G.Data.statLabels[k].name}`).join(', ');
+
+  /** Carte d'une panoplie : pièces (portées / possédées / manquantes) et bonus. */
+  function setCard(i, set, act) {
+    const worn = new Set(Object.values(G.state.team[i].equipped).map((uid) => G.Systems.inventory.getGear(uid).id));
+    const owned = new Set(G.state.gear.map((g) => g.id));
+    const pieces = set.items.map((id) => {
+      const st = worn.has(id) ? 'worn' : owned.has(id) ? 'owned' : 'missing';
+      return `<span class="piece ${st}" title="${U.esc(G.items[id].name)}${st === 'worn' ? ' (porté)' : st === 'owned' ? ' (dans l\'inventaire)' : ''}">${UI.icon(id, 'sm')}</span>`;
+    }).join('');
+    const tiers = Object.keys(set.bonus).map(Number);
+    const cur = act ? act.count : 0;
+    const rows = tiers.map((n) => `<tr class="${cur >= n && (!tiers.some((t) => t > n && t <= cur)) ? 'on' : ''}"><td>${n} pièces</td><td>${statText(set.bonus[n])}</td></tr>`).join('');
+    return `<div class="set-card ${cur ? 'active' : ''}"><div class="row spread"><b>${set.name}</b><span class="tag ${cur ? 'est' : ''}">${cur} / ${set.items.length} portées</span></div>
+      <div class="pieces">${pieces}</div>
+      <details><summary class="muted">Bonus de panoplie${act && act.bonus ? ' — actif : ' + statText(act.bonus) : ''}</summary><table class="kv compact">${rows}</table></details></div>`;
+  }
+
+  function setsPanel(i) {
+    const act = {};
+    G.Systems.team.activeSets(i).forEach((a) => (act[a.set.id] = a));
+    const list = G.Data.sets.slice().sort((a, b) => (act[b.id] ? act[b.id].count : 0) - (act[a.id] ? act[a.id].count : 0));
+    return `<div class="panel"><h3>🧩 Panoplies</h3>
+      <p class="muted" style="margin-top:0"><small>Porter plusieurs pièces d'une même panoplie donne un bonus (valeurs de Dofus Unity). Pièce <b>portée</b> en couleur vive, <b>dans l'inventaire</b> atténuée, <b>manquante</b> grisée.</small></p>
+      <div class="grid sets-grid">${list.map((st) => setCard(i, st, act[st.id])).join('')}</div></div>`;
   }
 
   function picker() {
@@ -103,7 +134,7 @@
       el.innerHTML = `<h2>Équipe</h2>
         <div class="tabs">${tabs}</div>
         <div class="grid team-grid">${charPanel(i)}${statsPanel(i)}${spellsPanel(i)}</div>
-        ${picker()}`;
+        ${picker()}${setsPanel(i)}`;
       el.querySelector('.name-in').onchange = (e) => { G.state.team[i].name = e.target.value.trim().slice(0, 16) || 'Héros'; G.emit('imported'); };
       el.querySelector('.auto-sel').onchange = (e) => {
         G.state.team[i].autoStat = e.target.value || null;

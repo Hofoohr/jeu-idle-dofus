@@ -2,8 +2,8 @@
    Constantes d'équilibrage globales. Modifie ici pour régler le rythme du jeu.
    ========================================================================== */
 Game.Data.config = {
-  saveKey: 'dofus-idle-save-v3',
-  saveVersion: 3,
+  saveKey: 'dofus-idle-save-v4',
+  saveVersion: 4,
   autosaveSeconds: 30,
   offlineCapHours: 12,           // plafond de progression hors-ligne
   offlineReportMinSeconds: 60,   // en dessous : pas de fenêtre de récapitulatif
@@ -33,14 +33,16 @@ Game.Data.config = {
     tickSeconds: 0.1,
     atbMax: 1000,
     speedBase: 40,             // vitesse sans initiative (sinon un niveau 1 à 0 initiative n'agirait jamais)
-    speedPerInit: 0.5,
+    speedPerInit: 0.2,
     startAtbMax: 250,          // la barre de départ est tirée entre 0 et cette valeur
-    // Dégâts / soins / boucliers d'un sort = base × (statOffset + stat) / 100 (+ Dommages pour les dégâts)
+    // Dégâts / soins / boucliers d'un sort = base × (statOffset + stat + Puissance) / 100
+    //   (+ Dommages et Dommages de l'élément pour les dégâts ; + Soins pour les soins)
     statOffset: 100,
     spawnSeconds: 1.5,         // pause entre deux combats
     restSeconds: 8,            // repos si toute l'équipe est à terre (régénération progressive)
     reviveHpPct: 0.30,         // PV des alliés tombés qui se relèvent après la victoire
     healAfterFight: 0.10,      // fraction des PV max rendue à tous après une victoire
+    critMultiplier: 1.5,       // dégâts multipliés par 1,5 sur un coup critique (chance = stat Critiques, en %)
     damageVariance: 0.10,      // ±10 % sur chaque coup (0 pour désactiver)
     resistCap: 75,             // % de résistance maximum (par élément) ; les faiblesses (rés. négative) augmentent les dégâts
     healThreshold: 0.5,        // l'IA soigne quand un allié est sous 50 % de PV
@@ -66,8 +68,8 @@ Game.Data.config = {
 /* Éléments : chaque élément est lié à une caractéristique (qui augmente les dégâts,
    soins et boucliers de ce type) et à une résistance. */
 Game.Data.elements = {
-  terre: { name: 'Terre', icon: '🟤', stat: 'force',  res: 'resTerre' },
-  feu:   { name: 'Feu',   icon: '🔴', stat: 'intel',  res: 'resFeu' },
-  eau:   { name: 'Eau',   icon: '🔵', stat: 'chance', res: 'resEau' },
-  air:   { name: 'Air',   icon: '⚪', stat: 'agi',    res: 'resAir' },
+  terre: { name: 'Terre', icon: '🟤', stat: 'force',  res: 'resTerre', dmg: 'dmgTerre' },
+  feu:   { name: 'Feu',   icon: '🔴', stat: 'intel',  res: 'resFeu',   dmg: 'dmgFeu' },
+  eau:   { name: 'Eau',   icon: '🔵', stat: 'chance', res: 'resEau',   dmg: 'dmgEau' },
+  air:   { name: 'Air',   icon: '⚪', stat: 'agi',    res: 'resAir',   dmg: 'dmgAir' },
 };

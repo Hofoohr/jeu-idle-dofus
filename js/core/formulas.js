@@ -27,23 +27,35 @@
     },
 
     /**
-     * Valeur de base d'un sort (avant dommages fixes, variance et résistances) :
-     *   power × (statOffset + caractéristique associée) / 100
-     * (statOffset = 100 : à 0 en caractéristique, le sort fait ses dégâts de base.)
+     * Valeur de base d'un sort (avant dommages fixes, variance, critique et résistances) :
+     *   power × (statOffset + caractéristique associée + Puissance) / 100
+     * (statOffset = 100 : sans aucune caractéristique, le sort fait ses dégâts de base.)
      */
     spellValue(stats, spell) {
       const c = G.Data.config.combat;
       const stat = stats[G.Data.elements[spell.element].stat] || 0;
-      return spell.power * (c.statOffset + stat) / 100;
+      return spell.power * (c.statOffset + stat + (stats.pow || 0)) / 100;
     },
 
-    /** Dégâts d'un sort sur un monstre : (valeur + Dommages) × variance × (1 − résistance de l'élément). */
+    /**
+     * Dégâts d'un sort sur un monstre : (valeur + Dommages + Dommages de l'élément) × variance
+     * × critique (×1,5 avec une chance = stat Critiques) × (1 − résistance de l'élément).
+     * Retourne { dmg, crit }.
+     */
     spellDamage(stats, spell, monster) {
-      const c = G.Data.config.combat;
+      const c = G.Data.config.combat, el = G.Data.elements[spell.element];
       // résistance positive plafonnée ; négative = faiblesse (dégâts augmentés)
       const res = Math.min(c.resistCap, (monster.res && monster.res[spell.element]) || 0);
-      const d = (this.spellValue(stats, spell) + (stats.dmg || 0)) * (1 + U.rand(-c.damageVariance, c.damageVariance)) * (1 - res / 100);
-      return Math.max(1, Math.round(d));
+      const crit = U.chance(Math.min(100, stats.crit || 0));
+      const d = (this.spellValue(stats, spell) + (stats.dmg || 0) + (stats[el.dmg] || 0))
+        * (1 + U.rand(-c.damageVariance, c.damageVariance)) * (crit ? c.critMultiplier : 1) * (1 - res / 100);
+      return { dmg: Math.max(1, Math.round(d)), crit };
+    },
+
+    /** Soin d'un sort : valeur de base + Soins. */
+    spellHeal(stats, spell) {
+      const c = G.Data.config.combat;
+      return Math.max(1, Math.round((this.spellValue(stats, spell) + (stats.heal || 0)) * (1 + U.rand(-c.damageVariance, c.damageVariance))));
     },
 
     /** Vitesse de la barre d'attaque, par tick : speedBase + initiative × speedPerInit. */

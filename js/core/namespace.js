@@ -31,6 +31,10 @@
     return `<img class="ic ${cls}" src="${Game.assets.objet(it.icone)}" alt="" loading="lazy" data-ph="${ini}" onerror="Game.UI.imgFail(this)">`;
   };
 
+  /** HTML d'une icône de sort (image locale assets/sorts/ ; initiales si le fichier manque). */
+  Game.spellIconHtml = (spell, cls = '') =>
+    `<img class="ic ${cls}" src="assets/sorts/${spell.icone}" alt="" loading="lazy" data-ph="${Game.util.esc(spell.name.slice(0, 2))}" onerror="Game.UI.imgFail(this)">`;
+
   /* ---------- Bus d'événements ---------- */
   const handlers = {};
   Game.on = (evt, fn) => { (handlers[evt] = handlers[evt] || []).push(fn); };
@@ -83,6 +87,7 @@
     Game.jobs = byId(D.jobs);
     Game.recipes = byId(D.recipes);
     Game.slots = byId(D.slots);
+    Game.sets = byId(D.sets);
     Game.resources = {};
     D.jobs.forEach((j) => (j.resources || []).forEach((r) => { r.jobId = j.id; Game.resources[r.id] = r; }));
     // Contrôles de cohérence (aident quand tu ajoutes du contenu)
@@ -96,5 +101,6 @@
       r.ingredients.forEach((i) => { if (!Game.items[i.item]) warn(`ingrédient inconnu "${i.item}" (${r.id})`); });
     });
     D.jobs.forEach((j) => (j.resources || []).forEach((r) => { if (!Game.items[r.item]) warn(`ressource inconnue "${r.item}"`); }));
+    D.sets.forEach((st) => st.items.forEach((i) => { if (!Game.items[i]) warn(`pièce de panoplie inconnue "${i}" (${st.id})`); }));
   };
 })();

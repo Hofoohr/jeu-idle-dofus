@@ -269,3 +269,17 @@ input[type=text], select { background: var(--bg); color: var(--text); border: 1p
 
 .tag.est { color: var(--accent2); border-color: var(--accent); }
 .spell-row .eff { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+
+/* ---------- Panoplies, critiques, sorts adaptés ---------- */
+.sets-grid { grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
+.set-card { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.set-card.active { border-color: var(--accent); }
+.set-card .pieces { display: flex; gap: 4px; margin: 6px 0; flex-wrap: wrap; }
+.set-card .piece { border-radius: 6px; padding: 2px; border: 2px solid transparent; }
+.set-card .piece.worn { border-color: var(--accent2); background: var(--panel2); }
+.set-card .piece.owned { opacity: .75; }
+.set-card .piece.missing { opacity: .22; filter: grayscale(1); }
+.set-card details summary { cursor: pointer; font-size: .8rem; }
+.set-card table tr.on td { color: var(--accent2); font-weight: 700; }
+.float.dmg.crit { font-size: 1.5rem; color: #ffb02e; }
+.adapt { color: #c9a66b; font-style: italic; }

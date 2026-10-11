@@ -95,8 +95,8 @@
       } else if (e.t === 'num' || e.t === 'text') {
         const s = document.createElement('span');
         const kind = e.kind;
-        s.className = 'float ' + kind;
-        s.textContent = e.t === 'text' ? e.text : (kind === 'dmg' ? '-' : '+') + U.fmt(e.v);
+        s.className = 'float ' + kind + (e.crit ? ' crit' : '');
+        s.textContent = e.t === 'text' ? e.text : (kind === 'dmg' ? '-' : '+') + U.fmt(e.v) + (e.crit ? '!' : '');
         if (e.absorb) s.textContent = '🛡 ' + U.fmt(e.v);
         s.style.left = (30 + Math.random() * 40) + '%';
         u.querySelector('.fx-layer').appendChild(s);

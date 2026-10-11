@@ -86,7 +86,8 @@
     canEquip(i, inst) {
       const it = G.items[inst.id], c = G.state.team[i], cls = G.classes[c.classId];
       if (it.level > c.level) return { ok: false, reason: `Niveau ${it.level} requis` };
-      if (it.weaponType && it.weaponType !== cls.weapon) return { ok: false, reason: `Réservé aux ${G.Data.weaponTypes[it.weaponType]}s (${G.Data.classes.filter((k) => k.weapon === it.weaponType).map((k) => k.name).join(', ')})` };
+      const only = it.weaponType && G.Data.weaponClass[it.weaponType];   // arcs, épées, bâtons, baguettes : une seule classe
+      if (only && only !== c.classId) return { ok: false, reason: `Réservé aux ${G.classes[only].name} (${G.Data.weaponTypes[it.weaponType]})` };
       return { ok: true };
     },
 

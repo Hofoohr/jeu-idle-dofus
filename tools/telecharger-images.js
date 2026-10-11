@@ -2,6 +2,7 @@
 /* Télécharge depuis DofusDB les images référencées par les fichiers de données :
      - assets/monstres/<dofusdbId>.png   (sprite du monstre, via l'API DofusDB)
      - assets/objets/<icone>             (icône de chaque objet / ressource)
+     - assets/sorts/<icone>              (icône de chaque sort de Dofus Unity)
    Les sprites de classes (assets/classes/*.png) et les décors sont à fournir toi-même.
    Usage : node tools/telecharger-images.js [--force]     (Node 18 ou plus récent)
    Les images déjà présentes sont conservées (sauf --force).
@@ -37,6 +38,10 @@ async function save(url, file) {
   for (const it of G.Data.items) {
     try { console.log(`objet ${it.name} (${it.icone}) : ${await save(`https://api.dofusdb.fr/img/items/${it.icone}`, path.join(root, 'objets', it.icone))}`); }
     catch (e) { fail++; console.error(`objet ${it.name} (${it.icone}) : ÉCHEC ${e.message}`); }
+  }
+  for (const sp of G.Data.spells) {
+    try { console.log(`sort ${sp.name} (${sp.icone}) : ${await save(`https://api.dofusdb.fr/img/spells/${sp.icone}`, path.join(root, 'sorts', sp.icone))}`); }
+    catch (e) { fail++; console.error(`sort ${sp.name} (${sp.icone}) : ÉCHEC ${e.message}`); }
   }
   console.log(fail ? `\n${fail} échec(s).` : '\nTout est téléchargé.');
 })();

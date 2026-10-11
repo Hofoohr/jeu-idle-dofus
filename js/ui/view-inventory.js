@@ -26,7 +26,7 @@
     }
     return `<div class="gear-row ${by >= 0 ? 'equipped' : ''}">${UI.icon(g.id, 'md')}
       <div class="info"><b>${it.name}</b> <span class="tag">niv. ${it.level}</span> <span class="tag">${G.slots[it.slot].name}</span>${wt}
-        ${by >= 0 ? ` <span class="tag">porté par ${U.esc(G.state.team[by].name)}</span>` : ''}
+        ${it.set ? ` <span class="tag est" title="Panoplie">🧩 ${G.sets[it.set].name.replace('Panoplie ', '').replace(/^(du|des|de|d')\s*/i, '')}</span>` : ''}${by >= 0 ? ` <span class="tag">porté par ${U.esc(G.state.team[by].name)}</span>` : ''}
         ${UI.statsHtml(stats)}</div>
       <div class="row">${actions}</div></div>`;
   };

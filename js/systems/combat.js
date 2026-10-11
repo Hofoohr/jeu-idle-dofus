@@ -93,40 +93,39 @@
 
   /* ---------- Effets ---------- */
   /** Inflige des dégâts en consommant d'abord le bouclier. */
-  function applyDamage(t, dmg) {
+  function applyDamage(t, dmg, crit) {
     const absorbed = Math.min(t.shield, dmg);
     t.shield -= absorbed;
     const real = dmg - absorbed;
     t.hp -= real;
     if (absorbed > 0) fx({ t: 'num', id: t.id, kind: 'shield', v: absorbed, absorb: true });
-    if (real > 0) fx({ t: 'num', id: t.id, kind: 'dmg', v: real });
+    if (real > 0) fx({ t: 'num', id: t.id, kind: 'dmg', v: real, crit });
     if (t.hp <= 0) { t.hp = 0; t.alive = false; t.shield = 0; fx({ t: 'dead', id: t.id }); }
   }
 
   function cast(f, sp, targets) {
     if (sp.cd > 0) f.cds[sp.id] = sp.cd;
     fx({ t: 'act', id: f.id });
-    const who = `<b>${U.esc(f.name)}</b>`;
+    const who = `<b>${U.esc(f.name)}</b>`, ico = G.spellIconHtml(sp, 'xs');
     if (sp.kind === 'damage') {
-      const parts = targets.map((t) => { const d = G.F.spellDamage(f.stats, sp, t.def); applyDamage(t, d); return d; });
-      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets.length > 1 ? targets.length + ' ennemis' : targets[0].name} : <b>${parts.join(' + ')}</b>`, 'spell');
+      const parts = targets.map((t) => { const r = G.F.spellDamage(f.stats, sp, t.def); applyDamage(t, r.dmg, r.crit); return r.crit ? r.dmg + '💥' : r.dmg; });
+      G.log(`${ico} ${who} lance ${sp.name} → ${targets.length > 1 ? targets.length + ' ennemis' : targets[0].name} : <b>${parts.join(' + ')}</b>`, 'spell');
     } else if (sp.kind === 'heal') {
-      const base = G.F.spellValue(f.stats, sp);
       const parts = targets.map((t) => {
-        const h = Math.round(base * (1 + U.rand(-cfg().damageVariance, cfg().damageVariance)));
+        const h = G.F.spellHeal(f.stats, sp);
         const real = Math.min(h, t.maxHp - t.hp);
         t.hp += real;
         fx({ t: 'num', id: t.id, kind: 'heal', v: real });
         return real;
       });
-      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets.length > 1 ? 'toute l\'équipe' : U.esc(targets[0].name)} : <b>+${parts.join(' / +')} PV</b>`, 'spell');
+      G.log(`${ico} ${who} lance ${sp.name} → ${targets.length > 1 ? 'toute l\'équipe' : U.esc(targets[0].name)} : <b>+${parts.join(' / +')} PV</b>`, 'spell');
     } else if (sp.kind === 'shield') {
       const v = Math.round(G.F.spellValue(f.stats, sp));
       targets.forEach((t) => { t.shield = Math.max(t.shield, v); t.shieldTurns = sp.duration; fx({ t: 'num', id: t.id, kind: 'shield', v }); });
-      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets.length > 1 ? 'toute l\'équipe' : U.esc(targets[0].name)} : <b>bouclier ${v}</b>`, 'spell');
+      G.log(`${ico} ${who} lance ${sp.name} → ${targets.length > 1 ? 'toute l\'équipe' : U.esc(targets[0].name)} : <b>bouclier ${v}</b>`, 'spell');
     } else if (sp.kind === 'debuff') {
       targets.forEach((t) => { t.debuff = { value: sp.value, turns: sp.duration }; fx({ t: 'text', id: t.id, text: '-' + Math.round(sp.value * 100) + '% dég.', kind: 'debuff' }); });
-      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets[0].name} : <b>dégâts -${Math.round(sp.value * 100)} %</b>`, 'spell');
+      G.log(`${ico} ${who} lance ${sp.name} → ${targets[0].name} : <b>dégâts -${Math.round(sp.value * 100)} %</b>`, 'spell');
     }
   }
 

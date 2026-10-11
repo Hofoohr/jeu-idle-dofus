@@ -36,7 +36,7 @@
     }).join('');
     const wt = res.weaponType ? ` <span class="tag">${G.Data.weaponTypes[res.weaponType]}</span>` : '';
     return `<div class="entry ${active ? 'active' : ''}">${UI.icon(r.result.item, 'md')}
-      <div class="info"><b>${res.name}</b> <span class="tag ${locked ? 'lock' : ''}">métier niv. ${r.level}</span> <span class="tag">équip. niv. ${res.level}</span>${wt}
+      <div class="info"><b>${res.name}</b> <span class="tag ${locked ? 'lock' : ''}">métier niv. ${r.level}</span> <span class="tag">équip. niv. ${res.level}</span>${wt}${r.adapted ? ' <span class="tag" title="Ingrédients adaptés au jeu (la vraie recette de Dofus utilise des ressources absentes)">adaptée</span>' : ''}
         ${UI.statsHtml(res.stats)}
         <div class="ing">${ing}</div>
         <small>${r.time} s · +${Math.max(1, Math.round(r.xp * G.F.jobXpMult(j.level, r.level)))} XP métier</small></div>

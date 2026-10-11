@@ -51,15 +51,15 @@
       <table><tr><th>Élément</th><th>Caractéristique</th><th>Résistance</th></tr>
       ${Object.keys(G.Data.elements).map((k) => `<tr><td>${G.Data.elements[k].icon} ${G.Data.elements[k].name}</td><td>${G.Data.statLabels[G.Data.elements[k].stat].name}</td><td>${G.Data.statLabels[G.Data.elements[k].res].name}</td></tr>`).join('')}</table>
       <p><b>Dégâts d'un sort</b> :</p>
-      <span class="ex">dégâts = <b>base</b> × (${cb.statOffset} + <b>caractéristique associée</b>) / 100 + <b>Dommages</b><br>puis × (1 − <b>résistance</b> du monstre à l'élément / 100)</span>
+      <span class="ex">dégâts = <b>base</b> × (${cb.statOffset} + <b>caractéristique associée</b> + <b>Puissance</b>) / 100 + <b>Dommages</b> + <b>Dommages de l'élément</b><br>× ${cb.critMultiplier} en cas de <b>coup critique</b> (chance = stat Critiques, en %)<br>puis × (1 − <b>résistance</b> du monstre à l'élément / 100)</span>
       <p>Exemple : un Iop avec ${ex.stat} en Force et ${ex.dmg} Dommages lance <i>${sp.name}</i> (base ${sp.power}) sur un monstre qui a ${ex.res} % de résistance Terre (une <b>faiblesse</b>) :</p>
       <span class="ex">${sp.power} × ${f((cb.statOffset + ex.stat) / 100, 2)} = ${f(exBase)} · + ${ex.dmg} = ${f(exRaw)} · × ${f(1 - ex.res / 100, 2)} = <b>≈ ${Math.round(exFinal)} dégâts</b></span>
       <ul><li>Une résistance <b>positive</b> réduit les dégâts (plafonnée à ${cb.resistCap} %), une résistance <b>négative</b> (faiblesse, en vert sur les fiches monstres) les augmente. Choisis tes éléments en fonction des monstres !</li>
-      <li>Soins et boucliers utilisent la même formule, sans les Dommages.</li>
+      <li>Soins et boucliers utilisent la même formule ; les soins ajoutent la stat <b>Soins</b>, les boucliers n'ajoutent rien.</li>
       <li>Les attaques des monstres ont aussi un élément : tes résistances (objets) s'appliquent. Les dégâts varient aléatoirement de ±${Math.round(cb.damageVariance * 100)} %.</li></ul>`, false)}
 
     ${sec('✨ Les sorts et leurs priorités', `<ul>
-      <li>Chaque classe a <b>5 sorts</b> : 3 au niveau 1, un 4<sup>e</sup> au niveau 5, un 5<sup>e</sup> au niveau 10.</li>
+      <li>Chaque classe a <b>5 sorts</b> : 3 au niveau 1, un 4<sup>e</sup> au niveau 5, un 5<sup>e</sup> au niveau 10. Ce sont de <b>vrais sorts de Dofus Unity</b> (nom, icône, élément et dégâts de base du niveau 1) ; la <b>recharge</b> est adaptée au combat automatique, et les effets de soutien (Rempart, Bouclier Féca, Lait de Bambou, Souillure) sont adaptés en boucliers, soin et affaiblissement (une note l'indique sur chaque sort).</li>
       <li>Un sort est une <b>attaque de base</b> (sans recharge, toujours disponible) ou un sort à <b>recharge</b> (nombre d'actions du lanceur avant de pouvoir le relancer).</li>
       <li>Types : <b>dégâts</b> (sur une cible ou <b>de zone</b>), <b>soin</b>, <b>bouclier</b> (absorbe des dégâts avant les PV, dure quelques actions), <b>affaiblissement</b> (réduit les dégâts d'un ennemi).</li>
       <li><b>Priorité</b> : dans l'onglet Équipe, classe les sorts avec ▲ ▼. À chaque action, le personnage lance le sort <u>le mieux classé qui est prêt</u>. Un sort est « prêt » si sa recharge est finie <b>et</b> qu'il est utile :
@@ -82,18 +82,29 @@
       <li>Une zone demande un <b>niveau moyen d'équipe</b> minimum pour être débloquée.</li>
       <li>Les chiffres au-dessus des combattants : <span style="color:#ff5a45">rouge = dégâts</span>, <span style="color:#6fe05a">vert = soins</span>, <span style="color:#5ab8ff">bleu = boucliers</span>.</li></ul>`, false)}
 
+    ${sec('🗺️ Les zones', `<p>Trois zones, à débloquer avec le <b>niveau moyen de l'équipe</b> : <b>Prairie des Piou</b> (niveau 1) → <b>Champs d'Astrub</b> (niveau ${G.zones.champs_astrub.minLevel}) → <b>Plaine des Bouftous</b> (niveau ${G.zones.plaine_bouftous.minLevel}). Chaque zone a ses monstres, leurs résistances et faiblesses, et ses butins.</p>
+      <ul><li><b>Prairie des Piou</b> : les 6 Piou (Rouge, Bleu, Violet, Rose, Jaune, Vert). Chaque couleur laisse sa panoplie et sa plume.</li>
+      <li><b>Champs d'Astrub</b> : panoplies <b>Champêtre</b> et <b>du Paysan</b>.</li>
+      <li><b>Plaine des Bouftous</b> : panoplie <b>du Bouftou</b>, dont le Chef de Guerre (monstre rare).</li></ul>`, false)}
+
+    ${sec('🧩 Les panoplies', `<ul>
+      <li>Une panoplie est un ensemble d'objets (ex. Panoplie du Piou Rouge). Porter <b>plusieurs pièces de la même panoplie</b> sur un même personnage donne un <b>bonus</b> qui augmente avec le nombre de pièces (2, 3, 4… pièces). Les bonus sont ceux de Dofus Unity ; le palier atteint remplace le précédent.</li>
+      <li>Dans l'onglet Équipe, la section <b>Panoplies</b> montre pour chaque panoplie les pièces <b>portées</b> (vives), <b>dans l'inventaire</b> (atténuées) et <b>manquantes</b> (grisées), ainsi que les bonus de chaque palier.</li>
+      <li>Bonus non gérés (ignorés) : PA, PM, portée, invocations, dommages neutres, fuite…</li>
+      <li>Les stats des objets sont celles de Dofus Unity (jet maximum). Nouvelles stats : <b>Puissance</b> (s'ajoute à la caractéristique), <b>Dommages de l'élément</b>, <b>Critiques</b>, <b>Soins</b>.</li></ul>`, false)}
+
     ${sec('🪓 Les métiers', `<ul>
       <li>Les métiers sont au niveau du <b>compte</b> (pas par personnage) et partagent l'inventaire.</li>
       <li><b>Bûcheron</b> (récolte) : 3 types de bois débloqués par niveau. Plus le niveau est élevé, plus la récolte est rapide (−${f(c.gathering.speedPerLevel * 100)} % de temps par niveau) et plus la chance de récolte double est grande (+${f(c.gathering.doubleChancePerLevel)} % par niveau).</li>
-      <li><b>Tailleur</b> (craft) : coiffes et capes, avec des ressources de monstres (laine de Bouftou, plume de Tofu…).</li>
-      <li><b>Sculpteur</b> (craft) : arcs, bâtons et baguettes, avec du bois et des ressources de monstres.</li>
+      <li><b>Tailleur</b> (craft) : coiffes et capes avec des ressources de monstres. Les recettes sont celles de Dofus quand c'est possible (étiquette « adaptée » sinon).</li>
+      <li><b>Sculpteur</b> (craft) : arcs, bâtons et baguettes, avec du bois et des plumes de Piou.</li>
       <li>Chaque recette demande un niveau de métier. Fabriquer tourne en boucle tant que tu as les ingrédients.</li>
       <li>Comme pour les monstres, une activité trop facile (niveau du métier bien supérieur au niveau requis) rapporte moins d'XP.</li></ul>`, false)}
 
     ${sec('🛡️ L\'équipement', `<ul>
-      <li>7 emplacements par personnage : <b>coiffe, cape, amulette, anneau, ceinture, bottes, arme</b>. L'équipement est <b>affiché en icônes</b> dans la fiche du personnage (il n'est pas dessiné sur le sprite).</li>
+      <li>8 emplacements par personnage : <b>coiffe, cape, amulette, anneau, ceinture, bottes, bouclier, arme</b>. L'équipement est <b>affiché en icônes</b> dans la fiche du personnage (il n'est pas dessiné sur le sprite).</li>
       <li>Chaque objet a un <b>niveau requis</b> et des stats : vitalité, force, intelligence, agilité, chance, dommages, sagesse, initiative, résistances.</li>
-      <li><b>Armes réservées</b> : arcs pour les Crâ, épées pour les Iop, bâtons pour les Féca, baguettes pour les Pandawa.</li>
+      <li><b>Armes réservées</b> : arcs pour les Crâ, épées pour les Iop, bâtons pour les Féca, baguettes pour les Pandawa. Les marteaux et les faux sont utilisables par toutes les classes.</li>
       <li>Un objet ne peut être porté que par un personnage à la fois ; équiper un objet déjà porté le déplace.</li>
       <li>Les objets rares tombent des monstres (pourcentage faible), les autres se fabriquent. Tu peux vendre en kamas ce dont tu n'as pas besoin.</li></ul>`, false)}
 
