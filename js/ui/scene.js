@@ -14,8 +14,9 @@
     /** HTML de la scène (à insérer dans une vue puis appeler fill()). */
     html(zoneId) {
       const z = G.zones[zoneId];
-      const bg = (z.decor ? `url('${z.decor}') center/cover no-repeat, ` : '') + z.decorCss;
-      return `<div class="scene" id="scene" style="background:${bg}">
+      // Image de décor dans un vrai élément (url relative à la page, pas à la feuille de style)
+      const img = z.decor ? `<div class="scene-bg" style="background-image:url('${z.decor}')"></div>` : '';
+      return `<div class="scene" id="scene" style="background:${z.decorCss}">${img}
         <div class="side party" id="sc-party"></div>
         <div class="side enemies" id="sc-enemies"></div>
         <div class="scene-msg" id="sc-msg"></div>
