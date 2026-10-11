@@ -126,7 +126,7 @@ input[type=text] { background: var(--bg); color: var(--text); border: 1px solid 
 .sprite.ph span { position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%); font-size: .62rem; font-weight: 700; text-align: center; color: #fff; text-shadow: 0 1px 2px #000; line-height: 1.05; width: 120%; }
 
 /* ---------- Scène de combat ---------- */
-.scene { --sprite-h: 120px; position: relative; display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; padding: 36px 14px 12px; min-height: 250px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: inset 0 -40px 60px rgba(0,0,0,.35); }
+.scene { --sprite-h: 140px; position: relative; display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; padding: 36px 14px 12px; min-height: 250px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: inset 0 -40px 60px rgba(0,0,0,.35); }
 .scene .side { display: flex; align-items: flex-end; gap: 10px; flex: 1; min-width: 0; }
 .scene .side.party { justify-content: flex-start; } .scene .side.enemies { justify-content: flex-end; flex-direction: row; }
 .unit { position: relative; width: 108px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: opacity .6s, filter .6s, transform .12s; }
