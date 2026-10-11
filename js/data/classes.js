@@ -1,48 +1,40 @@
 /* ==========================================================================
-   Classes jouables. Pour en ajouter une : copie un bloc, change breedId
-   (id de la classe sur DofusDB : Féca=1, Osamodas=2, Enutrof=3, Sram=4,
-   Xélor=5, Ecaflip=6, Eniripsa=7, Iop=8, Crâ=9, Sadida=10, Sacrieur=11…).
+   Classes jouables. Pour en ajouter une : copie un bloc, crée le sprite
+   assets/classes/<id>.png et référence des sorts de spells.js.
 
-   base      : stats au niveau 1        perLevel : gain par niveau
-   opener    : 'distance' => le monstre perd sa 1re action (il doit approcher)
-   spells    : liste par PRIORITÉ ; le 1er sort disponible est lancé.
-               Le dernier doit avoir cd:0 (attaque de base, toujours dispo).
-     kind 'damage' : dégâts = ATK × mult
-     kind 'shield' : bouclier = PV max × pct, dure `duration` tours, non cumulable
-     cd            : nombre de tours du joueur entre deux lancers
+   base / perLevel : caractéristiques au niveau 1 / gain par niveau
+     vit (PV) · force · intel · agi · chance · sagesse · init (initiative)
+     resTerre · resFeu · resEau · resAir (résistances en %)
+   weapon : type d'arme utilisable (arc, epee, baton, baguette)
+   spells : par ordre de PRIORITÉ pour l'IA (voir spells.js)
    ========================================================================== */
 Game.Data.classes = [
   {
-    id: 'cra', name: 'Crâ', breedId: 9, role: 'Distance',
-    desc: 'Archer redoutable : dégâts élevés, mais fragile. Frappe de loin, le monstre perd sa première action.',
-    opener: 'distance',
-    base: { hp: 40, atk: 10, res: 0, crit: 8 },
-    perLevel: { hp: 5, atk: 1.6 },
-    spells: [
-      { id: 'fleche_enflammee', name: 'Flèche Enflammée', icon: '🔥', kind: 'damage', mult: 2.4, cd: 3, desc: 'Gros dégâts, tous les 3 tours.' },
-      { id: 'fleche_magique',   name: 'Flèche Magique',   icon: '🏹', kind: 'damage', mult: 1.0, cd: 0, desc: 'Attaque de base.' },
-    ],
+    id: 'cra', name: 'Crâ', role: 'Dégâts à distance', weapon: 'arc', color: '#7cb342',
+    desc: 'Archer redoutable : dégâts à distance très élevés, mais peu de PV.',
+    base:     { vit: 45, force: 0, intel: 0, agi: 30, chance: 0, sagesse: 0, init: 40, resTerre: 0, resFeu: 0, resEau: 0, resAir: 0 },
+    perLevel: { vit: 5,  force: 0, intel: 0, agi: 4,  chance: 0, sagesse: 0.5, init: 2, resTerre: 0, resFeu: 0, resEau: 0, resAir: 0 },
+    spells: ['fleche_dispersion', 'tir_puissant', 'fleche_magique'],
   },
   {
-    id: 'iop', name: 'Iop', breedId: 8, role: 'Mêlée',
-    desc: 'Guerrier impétueux : dégâts et vie équilibrés, aucun point faible évident.',
-    opener: null,
-    base: { hp: 60, atk: 8, res: 5, crit: 5 },
-    perLevel: { hp: 8, atk: 1.3 },
-    spells: [
-      { id: 'colere_de_iop', name: 'Colère de Iop', icon: '⚔️', kind: 'damage', mult: 2.6, cd: 4, desc: 'Coup dévastateur, tous les 4 tours.' },
-      { id: 'pression',      name: 'Pression',      icon: '💢', kind: 'damage', mult: 1.0, cd: 0, desc: 'Attaque de base.' },
-    ],
+    id: 'iop', name: 'Iop', role: 'Dégâts en mêlée', weapon: 'epee', color: '#e53935',
+    desc: 'Guerrier impétueux : gros dégâts au corps à corps, PV moyens.',
+    base:     { vit: 70, force: 30, intel: 0, agi: 0, chance: 0, sagesse: 0, init: 30, resTerre: 3, resFeu: 0, resEau: 0, resAir: 0 },
+    perLevel: { vit: 8,  force: 4, intel: 0, agi: 0, chance: 0, sagesse: 0.5, init: 1.5, resTerre: 0.2, resFeu: 0, resEau: 0, resAir: 0 },
+    spells: ['colere_iop', 'epee_divine', 'pression'],
   },
   {
-    id: 'feca', name: 'Féca', breedId: 1, role: 'Défense',
-    desc: 'Protecteur robuste : beaucoup de PV et de résistances, mais peu de dégâts.',
-    opener: null,
-    base: { hp: 85, atk: 6, res: 15, crit: 3 },
-    perLevel: { hp: 11, atk: 1.0 },
-    spells: [
-      { id: 'armure_terrestre', name: 'Armure Terrestre', icon: '🛡️', kind: 'shield', pct: 0.35, duration: 3, cd: 4, desc: 'Bouclier de 35 % des PV max pendant 3 tours.' },
-      { id: 'attaque_nuageuse', name: 'Attaque Nuageuse', icon: '☁️', kind: 'damage', mult: 1.0, cd: 0, desc: 'Attaque de base.' },
-    ],
+    id: 'feca', name: 'Féca', role: 'Protection', weapon: 'baton', color: '#8d6e63',
+    desc: 'Protecteur : applique des boucliers sur ses alliés. Dégâts faibles.',
+    base:     { vit: 80, force: 0, intel: 25, agi: 0, chance: 0, sagesse: 0, init: 20, resTerre: 3, resFeu: 3, resEau: 3, resAir: 3 },
+    perLevel: { vit: 9,  force: 0, intel: 3.5, agi: 0, chance: 0, sagesse: 0.5, init: 1, resTerre: 0.2, resFeu: 0.2, resEau: 0.2, resAir: 0.2 },
+    spells: ['rempart', 'armure_terrestre', 'attaque_naturelle'],
+  },
+  {
+    id: 'pandawa', name: 'Pandawa', role: 'Soutien', weapon: 'baguette', color: '#26a69a',
+    desc: 'Soutien robuste : soigne l\'allié le plus blessé et affaiblit les ennemis.',
+    base:     { vit: 90, force: 0, intel: 0, agi: 0, chance: 25, sagesse: 5, init: 10, resTerre: 0, resFeu: 0, resEau: 3, resAir: 0 },
+    perLevel: { vit: 10, force: 0, intel: 0, agi: 0, chance: 3.5, sagesse: 0.5, init: 1, resTerre: 0, resFeu: 0, resEau: 0.2, resAir: 0 },
+    spells: ['lait_bambou', 'epouvante', 'vague_a_lame'],
   },
 ];

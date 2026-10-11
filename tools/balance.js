@@ -1,28 +1,24 @@
-/* Simulation d'équilibrage : node tools/balance.js
-   Affiche, pour chaque classe / niveau / monstre (sans équipement), les kills,
-   morts et XP par heure de jeu. Sert à ajuster js/data/*.js et formulas.js. */
+/* Simulation d'équilibrage : node tools/balance.js [niveaux] [heures]
+   Équipe Crâ / Iop / Féca / Pandawa, SANS équipement, au niveau donné, sur chaque zone.
+   Affiche combats, défaites, XP gagnée (par perso) et kamas par heure de jeu. */
 const G = require('./load.js');
-const levels = (process.argv[2] || '1,5,10,15,20').split(',').map(Number);
-const hours = 1;
-function run(classId, level, monsterId) {
-  G.state = G.newState(classId, 't');
-  G.state.char.level = level;
-  G.Systems.character.invalidate();
-  const z = G.Data.zones.find((z) => z.monsters.includes(monsterId));
-  G.Engine.start({ type: 'combat', zoneId: z.id, monsterId });
+const levels = (process.argv[2] || '1,5,10,15').split(',').map(Number);
+const hours = +(process.argv[3] || 1);
+function run(level, zoneId) {
+  G.state = G.newState(G.testTeam());
+  G.state.team.forEach((c) => (c.level = level));
+  G.Systems.team.invalidate();
+  G.Engine.start({ type: 'combat', zoneId });
   G.silent = true; G.report = G.Offline.newReport(hours * 3600);
-  const xp0 = G.state.char.xp;
   G.Engine.advance(hours * 3600);
   const r = G.report; G.report = null; G.silent = false;
-  return { kills: r.kills, deaths: r.deaths, xp: r.xp.char || 0, kamas: r.kamas, lvl: G.state.char.level };
+  const xp = Object.keys(r.xp).filter((k) => /^c\d$/.test(k)).reduce((s, k) => s + r.xp[k], 0) / 4;
+  return { fights: r.fights, defeats: r.defeats, xp: Math.round(xp / hours), kamas: Math.round(r.kamas / hours), lvl: G.state.team.map((c) => c.level).join('/') };
 }
-for (const c of G.Data.classes) {
-  console.log(`\n=== ${c.name} ===`);
-  for (const L of levels) {
-    const row = G.Data.monsters.map((m) => {
-      const r = run(c.id, L, m.id);
-      return `${m.name.padEnd(8)} k${String(r.kills).padStart(4)} d${String(r.deaths).padStart(4)} xp${String(r.xp).padStart(6)}`;
-    });
-    console.log(`L${String(L).padStart(2)} | ` + row.join(' | '));
+console.log(`Équipe sans équipement, ${hours} h de jeu par ligne`);
+for (const L of levels) {
+  for (const z of G.Data.zones) {
+    const r = run(L, z.id);
+    console.log(`niv ${String(L).padStart(2)} | ${z.name.padEnd(22)} | combats/h ${String(Math.round(r.fights / hours)).padStart(4)} | défaites/h ${String(Math.round(r.defeats / hours)).padStart(3)} | XP/h/perso ${String(r.xp).padStart(6)} | kamas/h ${String(r.kamas).padStart(5)} | niveaux finaux ${r.lvl}`);
   }
 }

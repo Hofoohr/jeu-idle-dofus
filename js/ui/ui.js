@@ -1,6 +1,6 @@
 /* ==========================================================================
-   Noyau de l'interface : routeur de vues, helpers HTML, barre du haut,
-   dock (action en cours + journal), actions des boutons (data-act).
+   Noyau de l'interface : routeur de vues, helpers HTML (sprites, icônes,
+   barres), barre du haut, dock (activité en cours + journal), boutons data-act.
    Ajouter un écran = Game.UI.registerView({ id, name, icon, events, render, update }).
    ========================================================================== */
 (function () {
@@ -14,15 +14,34 @@
   const $ = (s) => document.querySelector(s);
   UI.$ = $;
 
-  /* ---------- Helpers HTML ---------- */
-  UI.img = (url, fallback, cls = '') =>
-    `<img class="ic ${cls}" src="${url}" alt="" loading="lazy" data-fb="${fallback || '❔'}" onerror="Game.UI.imgFail(this)">`;
+  /* ---------- Images : sprites et icônes avec visuel provisoire ---------- */
+  /** Teinte stable à partir d'un texte (pour les silhouettes provisoires). */
+  const hue = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+
+  /** Sprite (classe ou monstre) : hauteur fixe, largeur auto, aligné en bas. */
+  UI.sprite = (url, name, color) =>
+    `<img class="sprite" src="${url}" alt="${U.esc(name)}" data-name="${U.esc(name)}" data-color="${color || `hsl(${hue(name)} 45% 42%)`}" onerror="Game.UI.spriteFail(this)">`;
+  UI.spriteFail = (img) => {
+    const d = document.createElement('div');
+    d.className = 'sprite ph';
+    d.style.setProperty('--c', img.dataset.color);
+    d.innerHTML = `<i></i><span>${U.esc(img.dataset.name)}</span>`;
+    img.replaceWith(d);
+  };
+  UI.classSprite = (classId) => UI.sprite(G.assets.classe(classId), G.classes[classId].name, G.classes[classId].color);
+  UI.monsterSprite = (m) => UI.sprite(G.assets.monstre(m.dofusdbId), m.name);
+
+  /** Icône d'objet (visuel provisoire = initiales sur fond coloré). */
+  UI.icon = (itemId, cls) => G.iconHtml(itemId, cls);
   UI.imgFail = (img) => {
     const s = document.createElement('span');
     s.className = 'ic-fb ' + img.className.replace('ic', '').trim();
-    s.textContent = img.dataset.fb;
+    s.textContent = img.dataset.ph || '?';
+    s.style.background = `hsl(${hue(img.dataset.ph || '?')} 40% 32%)`;
     img.replaceWith(s);
   };
+
+  /* ---------- Helpers HTML ---------- */
   UI.bar = (id, cls) => `<div class="bar ${cls || ''}"><div class="fill" id="${id}"></div><span class="bar-t" id="${id}-t"></span></div>`;
   UI.setBar = (id, ratio, text) => {
     const f = document.getElementById(id);
@@ -36,7 +55,7 @@
     const parts = Object.keys(L).filter((k) => stats[k]).map((k) => `<span class="pos">${L[k].icon} +${stats[k]}${L[k].suffix} ${L[k].name}</span>`);
     return `<div class="statline">${parts.join('') || '<span class="muted">Aucun bonus</span>'}</div>`;
   };
-  UI.itemName = (id, qty) => { const it = G.items[id]; return `${UI.img(it.img, '📦', 'xs')} ${qty ? qty + '× ' : ''}${it.name}`; };
+  UI.itemName = (id, qty) => `${UI.icon(id, 'xs')} ${qty ? qty + '× ' : ''}${G.items[id].name}`;
 
   UI.toast = (msg) => {
     const t = $('#toast');
@@ -86,7 +105,7 @@
     if (fn) fn(el.dataset, el);
   });
 
-  /* ---------- Rafraîchissement ---------- */
+  /* ---------- Rafraîchissement des vues ---------- */
   ['action', 'inv', 'xp', 'level', 'equip', 'imported', 'select'].forEach((e) => G.on(e, () => dirty.add(e)));
   setInterval(() => {
     if (!dirty.size || !G.state) return;
@@ -97,47 +116,39 @@
 
   /* ---------- Barre du haut ---------- */
   UI.buildTopbar = () => {
-    const c = G.Systems.character.cls();
-    $('#topbar').innerHTML = `
-      ${UI.img(G.img.breedLogo(c.breedId), '🧙', 'portrait')}
-      <div class="who"><b id="tb-name"></b><small id="tb-class"></small></div>
-      <div class="bars">${UI.bar('tb-xp', 'xp')}${UI.bar('tb-hp', 'hp')}</div>
-      <div class="kamas" id="tb-kamas"></div>`;
-    $('#tb-name').textContent = G.state.char.name;
+    $('#topbar').innerHTML = `<b class="tb-title">⚔️ Dofus Idle</b><div class="tb-chars" id="tb-chars"></div><div class="kamas" id="tb-kamas"></div>`;
   };
-
   UI.updateTopbar = () => {
-    const S = G.state, st = G.Systems.character.stats(), c = G.Systems.character.cls();
-    $('#tb-class').textContent = `${c.name} · niveau ${S.char.level}`;
-    const need = G.Systems.character.xpToNext();
-    const max = S.char.level >= G.Data.config.maxCharLevel;
-    UI.setBar('tb-xp', max ? 1 : S.char.xp / need, max ? 'Niveau max' : `XP ${U.fmt(S.char.xp)} / ${U.fmt(need)}`);
-    const rt = G.rt.combat;
-    const hp = rt && S.action && S.action.type === 'combat' ? Math.max(0, rt.hp) : st.maxHp;
-    UI.setBar('tb-hp', hp / st.maxHp, `PV ${U.fmt(hp)} / ${U.fmt(st.maxHp)}`);
-    $('#tb-kamas').textContent = `💰 ${U.fmt(S.kamas)} k`;
+    const chars = G.state.team.map((c) => `<span class="chip">${U.esc(c.name)} <b>${c.level}</b></span>`).join('');
+    const el = $('#tb-chars');
+    if (el.dataset.h !== chars) { el.dataset.h = chars; el.innerHTML = chars; }
+    $('#tb-kamas').textContent = `💰 ${U.fmt(G.state.kamas)} k`;
   };
 
-  /* ---------- Dock : action en cours + journal ---------- */
+  /* ---------- Dock : activité en cours + journal ---------- */
   UI.updateDock = () => {
     const a = G.Engine.current();
     const info = G.Engine.describeCurrent();
-    $('#dk-title').textContent = info ? info.title : 'Aucune action';
+    $('#dk-title').textContent = info ? info.title : 'Aucune activité';
     $('#dk-sub').textContent = info ? info.sub : 'Choisis un combat ou un métier.';
     $('#dk-stop').style.visibility = a ? 'visible' : 'hidden';
-    const p = G.Engine.progress();
-    UI.setBar('dk-bar', a ? p : 0, a ? `${Math.round(p * 100)} %` : '');
+    const sys = G.Engine.system();
+    if (!a) UI.setBar('dk-bar', 0, '');
+    else if (sys.barInfo) { const b = sys.barInfo(a); UI.setBar('dk-bar', b.ratio, b.text); }
+    else { const p = G.Engine.progress(); UI.setBar('dk-bar', p, `${Math.round(p * 100)} %`); }
   };
 
   function logHtml(e) {
     const d = new Date(e.t);
-    const hh = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
     return `<div class="log-line log-${e.type}"><time>${hh}</time><span>${e.html}</span></div>`;
   }
   UI.renderJournal = () => {
     const j = $('#journal');
     j.innerHTML = G.logs.map(logHtml).join('');
     j.scrollTop = j.scrollHeight;
+    j.classList.toggle('hide-spell', !G.state.settings.showSpellLog);
+    $('#log-spells').checked = G.state.settings.showSpellLog;
   };
   G.on('log', (e) => {
     const j = $('#journal');
@@ -147,6 +158,10 @@
     while (j.children.length > G.Data.config.log.max) j.removeChild(j.firstChild);
     if (atBottom) j.scrollTop = j.scrollHeight;
   });
+  UI.actions.togglespells = (d, el) => {
+    G.state.settings.showSpellLog = el.checked;
+    $('#journal').classList.toggle('hide-spell', !el.checked);
+  };
 
   UI.tick = () => {
     UI.updateTopbar();

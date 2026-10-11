@@ -10,4 +10,5 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const files = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]).filter((f) => !f.startsWith('js/ui/') && f !== 'js/main.js');
 files.forEach((f) => vm.runInThisContext(fs.readFileSync(path.join(root, f), 'utf8'), { filename: f }));
 Game.buildIndex();
+Game.testTeam = () => Game.Data.classes.map((c, i) => ({ name: c.name, classId: c.id }));
 module.exports = Game;

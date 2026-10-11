@@ -13,7 +13,7 @@
   <aside id="sidebar">
     <div class="brand">⚔️ Dofus Idle<small>Projet de fan non commercial</small></div>
     <nav id="nav" style="display:contents"></nav>
-    <div class="side-foot">Sauvegarde auto toutes les 30 s.<br>Dofus © Ankama — images : DofusDB.</div>
+    <div class="side-foot">Sauvegarde auto toutes les 30 s.</div>
   </aside>
   <div id="main">
     <header id="topbar"></header>
@@ -24,14 +24,17 @@
         <div class="bar turn"><div class="fill" id="dk-bar"></div><span class="bar-t" id="dk-bar-t"></span></div>
         <button class="btn sm danger" id="dk-stop" data-act="stop">⏹ Arrêter</button>
       </div>
+      <div class="log-opts"><label><input type="checkbox" id="log-spells" data-act="togglespells" checked> Afficher les sorts lancés</label></div>
       <div id="journal"></div>
     </footer>
+    <div id="legal">Projet de fan non officiel et non commercial. DOFUS est une marque d'Ankama, tous droits réservés.</div>
   </div>
 </div>
 <div id="modal-root"></div>
 <div id="toast"></div>
 <script src="js/core/namespace.js"></script>
 <script src="js/data/config.js"></script>
+<script src="js/data/spells.js"></script>
 <script src="js/data/classes.js"></script>
 <script src="js/data/items.js"></script>
 <script src="js/data/monsters.js"></script>
@@ -44,7 +47,7 @@
 <script src="js/core/state.js"></script>
 <script src="js/core/save.js"></script>
 <script src="js/core/engine.js"></script>
-<script src="js/systems/character.js"></script>
+<script src="js/systems/team.js"></script>
 <script src="js/systems/inventory.js"></script>
 <script src="js/systems/rewards.js"></script>
 <script src="js/systems/combat.js"></script>
@@ -58,8 +61,9 @@
 <script src="js/ui/view-combat.js"></script>
 <script src="js/ui/view-jobs.js"></script>
 <script src="js/ui/view-inventory.js"></script>
-<script src="js/ui/view-equipment.js"></script>
-<script src="js/ui/view-character.js"></script>
+<script src="js/ui/view-team.js"></script>
+<script src="js/ui/view-settings.js"></script>
+<script src="js/ui/scene.js"></script>
 <script src="js/ui/modals.js"></script>
 <script src="js/main.js"></script>
 </body>

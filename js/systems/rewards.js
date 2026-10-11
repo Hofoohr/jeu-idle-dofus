@@ -1,18 +1,18 @@
 /* ==========================================================================
-   Récompenses : XP (personnage / métiers), kamas, objets.
-   Tout passe ici pour alimenter le journal et le rapport hors-ligne.
+   Récompenses : XP (personnages / métiers), kamas, objets.
+   Tout passe ici pour alimenter le journal et le récapitulatif hors-ligne.
    ========================================================================== */
 (function () {
   'use strict';
   const G = Game, U = G.util;
 
   G.Systems.rewards = {
-    /** kind : 'char' | 'job' ; id : id du métier (si job) */
+    /** kind 'char' : id = index du personnage · kind 'job' : id = id du métier */
     addXp(kind, id, amount) {
       if (amount <= 0) return;
-      const ent = kind === 'char' ? G.state.char : G.state.jobs[id];
+      const ent = kind === 'char' ? G.state.team[id] : G.state.jobs[id];
       const max = kind === 'char' ? G.Data.config.maxCharLevel : G.Data.config.maxJobLevel;
-      const key = kind === 'char' ? 'char' : id;
+      const key = kind === 'char' ? 'c' + id : id;
       if (G.report) G.report.xp[key] = (G.report.xp[key] || 0) + amount;
       if (ent.level >= max) return;
       ent.xp += amount;
@@ -25,7 +25,7 @@
           const lv = G.report.levels[key] = G.report.levels[key] || { from: ent.level - 1, to: ent.level };
           lv.to = ent.level;
         }
-        const name = kind === 'char' ? 'Personnage' : G.jobs[id].name;
+        const name = kind === 'char' ? U.esc(ent.name) : G.jobs[id].name;
         G.log(`🎉 <b>${name}</b> passe niveau <b>${ent.level}</b> !`, 'level');
       }
       if (ent.level >= max) ent.xp = 0;
@@ -45,14 +45,13 @@
     giveItem(itemId, qty, rare) {
       G.Systems.inventory.add(itemId, qty);
       const it = G.items[itemId];
-      const icon = `<img class="ic xs" src="${it.img}" alt="">`;
-      G.log(`${icon} ${rare ? '✨ Drop rare ! ' : ''}${qty}× <b>${it.name}</b>`, rare ? 'rare' : 'loot');
+      G.log(`${G.iconHtml(itemId, 'xs')} ${rare ? '✨ Drop rare ! ' : ''}${qty}× <b>${it.name}</b>`, rare ? 'rare' : 'loot');
     },
 
     /** Tire une table de drops { item, chance %, min, max }. */
     rollDrops(drops) {
       drops.forEach((d) => {
-        if (U.chance(d.chance)) this.giveItem(d.item, U.randInt(d.min, d.max), d.chance < 5 && G.items[d.item].type === 'equipment');
+        if (d.chance > 0 && U.chance(d.chance)) this.giveItem(d.item, U.randInt(d.min, d.max), d.chance < 5 && G.items[d.item].type === 'equipment');
       });
     },
   };

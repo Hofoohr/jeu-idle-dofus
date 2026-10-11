@@ -8,7 +8,7 @@
 
   G.Offline = {
     newReport(seconds) {
-      return { seconds, xp: {}, levels: {}, kamas: 0, items: {}, kills: 0, deaths: 0, gathered: 0, crafted: 0, stoppedEarly: false };
+      return { seconds, xp: {}, levels: {}, kamas: 0, items: {}, kills: 0, fights: 0, defeats: 0, gathered: 0, crafted: 0, stoppedEarly: false };
     },
 
     /**
@@ -27,7 +27,7 @@
       try { G.Engine.advance(seconds); }
       finally { G.silent = false; G.report = null; }
       report.stoppedEarly = !G.state.action;   // ex : ingrédients épuisés
-      G.Systems.character.invalidate();
+      G.Systems.team.invalidate();
       G.emit('inv'); G.emit('level'); G.emit('action');
       return report;
     },

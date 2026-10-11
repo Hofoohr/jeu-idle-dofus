@@ -7,6 +7,7 @@
      interval(action)   – durée (s) avant le prochain tick
      tick(action)       – exécute un pas (peut appeler Engine.stop())
      describe(action)   – { title, sub } pour l'affichage
+     barInfo(action)    – (optionnel) { ratio, text } pour la barre d'activité
    Ajouter les donjons plus tard = register('dungeon', …), rien d'autre à changer.
    ========================================================================== */
 (function () {

@@ -6,21 +6,24 @@
   'use strict';
   const G = Game;
 
-  G.newState = function (classId, name) {
+  /** team : [{ name, classId } × 4] */
+  G.newState = function (team) {
     const now = Date.now();
+    const jobs = {};
+    G.Data.jobs.forEach((j) => (jobs[j.id] = { level: 1, xp: 0 }));
     return {
       v: G.Data.config.saveVersion,
       createdAt: now, lastSeen: now,
-      char: { name: name || 'Aventurier', classId, level: 1, xp: 0 },
-      jobs: { woodcutter: { level: 1, xp: 0 }, blacksmith: { level: 1, xp: 0 } },
+      team: team.map((t) => ({ name: t.name, classId: t.classId, level: 1, xp: 0, equipped: {} })),
+      jobs,               // métiers du compte
       kamas: 0,
       items: {},          // ressources empilables { itemId: quantité }
-      gear: [],           // instances d'équipement { uid, id, mods:{} }
+      gear: [],           // instances d'équipement { uid, id, mods:{} } (inventaire partagé)
       nextUid: 1,
-      equipped: {},       // { slotId: uid }
       action: null,       // { type:'combat'|'gather'|'craft', … } — une seule à la fois
       selection: { zoneId: G.Data.zones[0].id },
-      stats: { kills: 0, deaths: 0, gathered: 0, crafted: 0, kamasEarned: 0 },
+      settings: { showSpellLog: true },
+      stats: { kills: 0, fights: 0, defeats: 0, gathered: 0, crafted: 0, kamasEarned: 0 },
       // Réservé pour les futures fonctionnalités (brisage, forgemagie, donjons)
       runes: {},
       dungeons: {},
@@ -29,24 +32,23 @@
 
   /** Complète une sauvegarde ancienne avec les champs manquants (migration douce). */
   G.migrate = function (s) {
-    if (!s || !s.char || !G.classes[s.char.classId]) return null;
-    const fresh = G.newState(s.char.classId, s.char.name);
+    if (!s || s.v !== G.Data.config.saveVersion || !Array.isArray(s.team) || s.team.length !== G.Data.config.teamSize) return null;
+    if (!s.team.every((c) => G.classes[c.classId])) return null;
+    const fresh = G.newState(s.team);
     const fill = (target, def) => {
       Object.keys(def).forEach((k) => {
         if (target[k] === undefined) target[k] = def[k];
         else if (def[k] && typeof def[k] === 'object' && !Array.isArray(def[k]) && typeof target[k] === 'object') fill(target[k], def[k]);
       });
     };
-    fill(s, fresh);
-    // Métiers ajoutés plus tard
-    G.Data.jobs.forEach((j) => { if (!s.jobs[j.id]) s.jobs[j.id] = { level: 1, xp: 0 }; });
+    const team = s.team; delete fresh.team; fill(s, fresh);
+    team.forEach((c) => { c.equipped = c.equipped || {}; c.level = c.level || 1; c.xp = c.xp || 0; });
     // Nettoyage : objets / équipements dont la définition a disparu
     Object.keys(s.items).forEach((id) => { if (!G.items[id] || !(s.items[id] > 0)) delete s.items[id]; });
     s.gear = s.gear.filter((g) => G.items[g.id]);
     const uids = new Set(s.gear.map((g) => g.uid));
-    Object.keys(s.equipped).forEach((slot) => { if (!uids.has(s.equipped[slot])) delete s.equipped[slot]; });
+    team.forEach((c) => Object.keys(c.equipped).forEach((slot) => { if (!uids.has(c.equipped[slot])) delete c.equipped[slot]; }));
     if (!G.zones[s.selection.zoneId]) s.selection.zoneId = G.Data.zones[0].id;
-    s.v = G.Data.config.saveVersion;
     return s;
   };
 })();

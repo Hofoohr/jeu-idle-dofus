@@ -8,7 +8,7 @@
   let last = Date.now();
 
   function startGame(awaySeconds) {
-    G.Systems.character.invalidate();
+    G.Systems.team.invalidate();
     UI.buildNav();
     UI.buildTopbar();
     UI.go('combat');
@@ -47,8 +47,8 @@
       G.state = saved;
       startGame((Date.now() - saved.lastSeen) / 1000);
     } else {
-      UI.classSelect((classId, name) => {
-        G.state = G.newState(classId, name);
+      UI.teamCreate((team) => {
+        G.state = G.newState(team);
         startGame(0);
         G.log('Bienvenue en Amakna ! Lance un combat ou une récolte.', 'info');
       });

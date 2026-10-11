@@ -1,149 +1,239 @@
 /* ==========================================================================
-   Combat automatique au tour par tour en temps réel.
-   Une action (joueur puis monstre, en alternance) toutes les `turnSeconds`.
-   Phases : 'fight' → (monstre mort) 'respawn' → 'fight' …
-                    → (joueur mort)  'dead'    → (réanimation) 'fight'
+   Combat automatique d'une équipe de 4 contre un groupe de 1 à 4 monstres.
+
+   - Chaque combattant agit à son tour selon son initiative (ordre fixé au début
+     du combat), une action toutes les `actionSeconds` (≈ 1 s).
+   - Phases : 'fight' (combat) → 'between' (pause avant le groupe suivant)
+              → si toute l'équipe tombe : 'rest' (repos, régénération) → nouveau groupe.
+   - Les événements visuels (animations) sont émis via Game.emit('fx', …), sauf
+     pendant la simulation hors-ligne (Game.silent).
    ========================================================================== */
 (function () {
   'use strict';
   const G = Game, U = G.util;
+  const cfg = () => G.Data.config.combat;
+  const EL = () => G.Data.elements;
+  const C = () => G.rt.combat;
+  const fx = (e) => { if (!G.silent) G.emit('fx', e); };
 
-  function C() { return G.rt.combat; }
-  function cfg() { return G.Data.config.combat; }
-  function feed(text, cls) {
-    if (G.silent) return;
-    const f = C().feed;
-    f.push({ text, cls });
-    if (f.length > cfg().feedLines) f.shift();
+  /* ---------- Création des combattants ---------- */
+  function makePartyFighters() {
+    const rt = C();
+    return G.state.team.map((c, i) => {
+      const st = G.Systems.team.stats(i);
+      const hp = rt.partyHp[i] === undefined ? st.maxHp : Math.min(rt.partyHp[i], st.maxHp);
+      return { id: 'p' + i, side: 'party', idx: i, name: c.name, classId: c.classId, level: c.level, stats: st,
+        maxHp: st.maxHp, hp, alive: hp > 0, shield: 0, shieldTurns: 0, debuff: null, cds: {}, init: st.init };
+    });
   }
 
+  /** Tire un groupe de 1 à 4 monstres (au plus un monstre « rare »). */
+  function makeEnemies(zone) {
+    const size = +U.weighted(Object.entries(cfg().groupSizeWeights).map(([n, w]) => ({ weight: w, n }))).n;
+    const list = [];
+    for (let i = 0; i < size; i++) {
+      let pool = zone.monsters;
+      if (list.some((m) => m.rare)) pool = pool.filter((e) => !Game.monsters[e.id].rare);
+      list.push(G.monsters[U.weighted(pool).id]);
+    }
+    return list.map((m, i) => ({ id: 'e' + i, side: 'enemy', def: m, name: m.name, level: m.level,
+      maxHp: m.hp, hp: m.hp, alive: true, shield: 0, shieldTurns: 0, debuff: null, cds: {}, init: m.init }));
+  }
+
+  function startFight(a) {
+    const rt = C();
+    rt.party = makePartyFighters();
+    rt.enemies = makeEnemies(G.zones[a.zoneId]);
+    // ordre de jeu : initiative décroissante (égalités tirées au hasard)
+    rt.order = rt.party.concat(rt.enemies).map((f) => ({ f, k: f.init + Math.random() })).sort((x, y) => y.k - x.k).map((x) => x.f);
+    rt.turnIdx = -1;
+    rt.phase = 'fight';
+    rt.fightNo++;
+    fx({ t: 'spawn' });
+  }
+
+  /* ---------- IA des personnages ---------- */
+  const alive = (arr) => arr.filter((f) => f.alive);
+  const ratio = (f) => f.hp / f.maxHp;
+  const lowest = (arr, fn) => arr.reduce((b, x) => (b === null || fn(x) < fn(b) ? x : b), null);
+
+  /**
+   * Choisit le sort et les cibles. Parcourt les sorts de la classe dans l'ordre ;
+   * le premier dont la condition est remplie est lancé (voir spells.js).
+   */
+  function chooseSpell(f) {
+    const cls = G.classes[f.classId], rt = C();
+    const allies = alive(rt.party), foes = alive(rt.enemies);
+    for (const id of cls.spells) {
+      const sp = G.spells[id];
+      if (sp.cd > 0 && (f.cds[id] || 0) > 0) continue;
+      if (sp.kind === 'heal') {
+        const t = lowest(allies, ratio);
+        if (t && ratio(t) < cfg().soloHealThreshold) return { sp, targets: [t] };
+      } else if (sp.kind === 'shield') {
+        const cand = allies.filter((a) => a.shield <= 0);
+        if (!cand.length) continue;
+        return { sp, targets: sp.aoe ? cand : [lowest(cand, ratio)] };
+      } else if (sp.kind === 'debuff') {
+        const cand = foes.filter((e) => !e.debuff);
+        if (!cand.length) continue;
+        const t = cand.reduce((b, e) => (e.def.attack.dmg[1] > b.def.attack.dmg[1] ? e : b));
+        return { sp, targets: [t] };
+      } else if (sp.kind === 'damage') {
+        if (sp.aoe && foes.length < 2) continue;
+        return { sp, targets: sp.aoe ? foes : [lowest(foes, (e) => e.hp)] };
+      }
+    }
+    // Attaque de base (dernier sort, cd 0)
+    return { sp: G.spells[cls.spells[cls.spells.length - 1]], targets: [lowest(foes, (e) => e.hp)] };
+  }
+
+  /* ---------- Effets ---------- */
+  /** Inflige des dégâts en consommant d'abord le bouclier. Retourne les PV réellement perdus. */
+  function applyDamage(t, dmg) {
+    const absorbed = Math.min(t.shield, dmg);
+    t.shield -= absorbed;
+    const real = dmg - absorbed;
+    t.hp -= real;
+    if (absorbed > 0) fx({ t: 'num', id: t.id, kind: 'shield', v: absorbed, absorb: true });
+    if (real > 0) fx({ t: 'num', id: t.id, kind: 'dmg', v: real });
+    if (t.hp <= 0) { t.hp = 0; t.alive = false; t.shield = 0; fx({ t: 'dead', id: t.id }); }
+    return real;
+  }
+
+  function cast(f, sp, targets) {
+    if (sp.cd > 0) f.cds[sp.id] = sp.cd;
+    fx({ t: 'act', id: f.id });
+    const who = `<b>${U.esc(f.name)}</b>`;
+    const lvl = f.level;
+    if (sp.kind === 'damage') {
+      const parts = targets.map((t) => { const d = G.F.spellDamage(f.stats, lvl, sp, t.def); applyDamage(t, d); return d; });
+      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets.length > 1 ? targets.length + ' ennemis' : targets[0].name} : <b>${parts.join(' + ')}</b>`, 'spell');
+    } else if (sp.kind === 'heal') {
+      targets.forEach((t) => {
+        const h = Math.round(G.F.spellValue(f.stats, lvl, sp) * (1 + U.rand(-cfg().damageVariance, cfg().damageVariance)));
+        const real = Math.min(h, t.maxHp - t.hp);
+        t.hp += real;
+        fx({ t: 'num', id: t.id, kind: 'heal', v: real });
+        G.log(`${sp.icon} ${who} lance ${sp.name} → ${U.esc(t.name)} : <b>+${real} PV</b>`, 'spell');
+      });
+    } else if (sp.kind === 'shield') {
+      targets.forEach((t) => {
+        const v = Math.round(G.F.spellValue(f.stats, lvl, sp));
+        t.shield = Math.max(t.shield, v); t.shieldTurns = sp.duration;
+        fx({ t: 'num', id: t.id, kind: 'shield', v });
+      });
+      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets.length > 1 ? 'toute l\'équipe' : U.esc(targets[0].name)} : <b>bouclier ${Math.round(G.F.spellValue(f.stats, lvl, sp))}</b>`, 'spell');
+    } else if (sp.kind === 'debuff') {
+      targets.forEach((t) => { t.debuff = { value: sp.value, turns: sp.duration }; fx({ t: 'text', id: t.id, text: '-' + Math.round(sp.value * 100) + '% dég.', kind: 'debuff' }); });
+      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets[0].name} : <b>dégâts -${Math.round(sp.value * 100)} %</b>`, 'spell');
+    }
+  }
+
+  function enemyAct(f) {
+    const rt = C(), targets = alive(rt.party);
+    if (!targets.length) return;
+    const t = targets[Math.floor(Math.random() * targets.length)];
+    fx({ t: 'act', id: f.id });
+    applyDamage(t, G.F.monsterDamage(f.def, t.stats, f.debuff && f.debuff.value));
+  }
+
+  /* ---------- Fin de combat ---------- */
+  function victory() {
+    const rt = C(), S = G.state, R = G.Systems.rewards, n = S.team.length;
+    const foes = rt.enemies;
+    S.stats.fights++; S.stats.kills += foes.length;
+    if (G.report) { G.report.kills += foes.length; G.report.fights++; }
+    const totalXp = foes.reduce((s, e) => s + e.def.xp, 0);
+    const kamas = foes.reduce((s, e) => s + U.randInt(e.def.kamas[0], e.def.kamas[1]), 0);
+    const avgLvl = foes.reduce((s, e) => s + e.level, 0) / foes.length;
+    R.addKamas(kamas);
+    const names = foes.map((e) => e.name).join(', ');
+    const gains = S.team.map((c, i) => {
+      const wis = G.Systems.team.stats(i).sagesse * cfg().sagesseXpPct / 100;
+      return Math.max(1, Math.round((totalXp / n) * G.F.monsterXpMult(c.level, avgLvl) * (1 + wis)));
+    });
+    G.log(`⚔️ Victoire contre ${names} : +${U.fmt(gains[0])} XP chacun (≈), +${U.fmt(kamas)} kamas`, 'combat');
+    gains.forEach((g, i) => R.addXp('char', i, g));
+    foes.forEach((e) => R.rollDrops(e.def.drops || []));
+    // relève les alliés tombés et soigne un peu
+    rt.party.forEach((p) => {
+      const max = G.Systems.team.stats(p.idx).maxHp;
+      let hp = p.hp <= 0 ? max * cfg().reviveHpPct : p.hp;
+      rt.partyHp[p.idx] = Math.min(max, Math.round(hp + max * cfg().healAfterFight));
+    });
+    rt.phase = 'between';
+    fx({ t: 'victory' });
+  }
+
+  function defeat() {
+    const rt = C();
+    G.state.stats.defeats++;
+    if (G.report) G.report.defeats++;
+    rt.phase = 'rest'; rt.restLeft = cfg().restSeconds;
+    rt.party.forEach((p) => (rt.partyHp[p.idx] = 0));
+    G.log('💀 Toute l\'équipe est à terre… repos en cours.', 'bad');
+    fx({ t: 'rest' });
+  }
+
+  /* ---------- Système d'action ---------- */
   const Combat = (G.Systems.combat = {
-    valid(a) { return !!G.monsters[a.monsterId] && G.zones[a.zoneId] && G.state.char.level >= G.zones[a.zoneId].minLevel; },
+    valid(a) { const z = G.zones[a.zoneId]; return !!z && G.Systems.team.avgLevel() >= z.minLevel; },
 
     begin(a) {
-      const st = G.Systems.character.stats();
-      G.rt.combat = { phase: 'fight', hp: st.maxHp, shield: 0, shieldTurns: 0, cds: {}, feed: [], monster: null, turn: 'player', skipMonster: false };
-      this.spawn(a);
+      G.rt.combat = { phase: 'between', partyHp: [], party: [], enemies: [], order: [], turnIdx: -1, fightNo: 0, restLeft: 0 };
+      startFight(a);
     },
 
-    end() { G.rt.combat = null; },
-
-    spawn(a) {
-      const def = G.monsters[a.monsterId], rt = C();
-      rt.monster = { def, hp: def.hp };
-      rt.phase = 'fight';
-      rt.turn = 'player';
-      rt.skipMonster = G.Systems.character.cls().opener === 'distance'; // le Crâ tire avant d'être atteint
-      rt.cds = {};
-      rt.shield = 0; rt.shieldTurns = 0;
-      feed(`Un ${def.name} apparaît !`, 'sys');
-    },
+    end() { G.rt.combat = null; fx({ t: 'spawn' }); },
 
     interval() {
       const rt = C();
-      if (rt.phase === 'dead') return cfg().reviveSeconds;
-      if (rt.phase === 'respawn') return cfg().respawnSeconds;
-      return cfg().turnSeconds;
+      if (rt.phase === 'rest') return 1;
+      if (rt.phase === 'between') return cfg().spawnSeconds;
+      return cfg().actionSeconds;
     },
 
     describe(a) {
-      const m = G.monsters[a.monsterId];
-      return { title: `⚔️ Combat : ${m.name}`, sub: G.zones[a.zoneId].name };
+      const z = G.zones[a.zoneId], rt = C();
+      const info = rt && rt.phase === 'rest' ? 'Repos…' : `Combat n°${rt ? rt.fightNo : 1}`;
+      return { title: `⚔️ Combat : ${z.name}`, sub: info };
+    },
+
+    barInfo() {
+      const rt = C();
+      if (!rt || !rt.enemies.length) return { ratio: 0, text: '' };
+      if (rt.phase === 'rest') return { ratio: 1 - rt.restLeft / cfg().restSeconds, text: 'Repos…' };
+      const hp = rt.enemies.reduce((s, e) => s + e.hp, 0), max = rt.enemies.reduce((s, e) => s + e.maxHp, 0);
+      return { ratio: hp / max, text: `Ennemis : ${U.fmt(hp)} / ${U.fmt(max)} PV` };
     },
 
     tick(a) {
       const rt = C();
-      const maxHp = G.Systems.character.stats().maxHp;
-      if (rt.hp > maxHp) rt.hp = maxHp;
-
-      if (rt.phase === 'dead') {
-        rt.hp = maxHp;
-        feed('Tu te relèves, prêt à repartir.', 'sys');
-        this.spawn(a);
+      if (rt.phase === 'between') { startFight(a); return; }
+      if (rt.phase === 'rest') {
+        rt.party.forEach((p) => { p.hp = Math.min(p.maxHp, p.hp + p.maxHp / cfg().restSeconds); p.alive = p.hp > 0; });
+        if (--rt.restLeft <= 0) {
+          rt.party.forEach((p) => (rt.partyHp[p.idx] = p.maxHp));
+          startFight(a);
+        }
         return;
       }
-      if (rt.phase === 'respawn') { this.spawn(a); return; }
+      // prochain combattant vivant dans l'ordre d'initiative
+      let f, guard = 0;
+      do { rt.turnIdx = (rt.turnIdx + 1) % rt.order.length; f = rt.order[rt.turnIdx]; } while (!f.alive && guard++ < 16);
+      // début de tour : recharges, durée du bouclier et du débuff
+      Object.keys(f.cds).forEach((k) => { if (f.cds[k] > 0) f.cds[k]--; });
+      if (f.shieldTurns > 0 && --f.shieldTurns === 0) f.shield = 0;
+      if (f.debuff && --f.debuff.turns <= 0) f.debuff = null;
 
-      if (rt.turn === 'player') { this.playerTurn(a); rt.turn = 'monster'; }
-      else { this.monsterTurn(a); rt.turn = 'player'; }
+      if (f.side === 'party') { const c = chooseSpell(f); cast(f, c.sp, c.targets); } else enemyAct(f);
+
+      if (!alive(rt.enemies).length) victory();
+      else if (!alive(rt.party).length) defeat();
     },
 
-    pickSpell() {
-      const rt = C(), cls = G.Systems.character.cls(), st = G.Systems.character.stats();
-      for (const sp of cls.spells) {
-        if (sp.cd > 0 && (rt.cds[sp.id] || 0) > 0) continue;
-        if (sp.kind === 'shield' && rt.shield > 0) continue;
-        if (sp.kind === 'heal' && rt.hp > st.maxHp * 0.9) continue;
-        return sp;
-      }
-      return cls.spells[cls.spells.length - 1];
-    },
-
-    playerTurn(a) {
-      const rt = C(), st = G.Systems.character.stats(), m = rt.monster;
-      // recharge des sorts / durée du bouclier
-      Object.keys(rt.cds).forEach((k) => { if (rt.cds[k] > 0) rt.cds[k]--; });
-      if (rt.shieldTurns > 0 && --rt.shieldTurns === 0) rt.shield = 0;
-
-      const sp = this.pickSpell();
-      if (sp.cd > 0) rt.cds[sp.id] = sp.cd;
-
-      if (sp.kind === 'shield') {
-        rt.shield = Math.round(st.maxHp * sp.pct);
-        rt.shieldTurns = sp.duration;
-        feed(`${sp.icon} ${sp.name} : bouclier de ${rt.shield} PV`, 'good');
-        return;
-      }
-      const hit = G.F.playerHit(st, sp, m.def);
-      m.hp -= hit.dmg;
-      feed(`${sp.icon} ${sp.name} → <b>${hit.dmg}</b>${hit.crit ? ' (critique !)' : ''}`, hit.crit ? 'crit' : 'dmg');
-      if (m.hp <= 0) this.victory(a);
-    },
-
-    monsterTurn() {
-      const rt = C(), st = G.Systems.character.stats(), m = rt.monster;
-      if (rt.skipMonster) { rt.skipMonster = false; feed(`${m.def.name} s'approche…`, 'sys'); return; }
-      let dmg = G.F.monsterHit(m.def, st);
-      feed(`${m.def.name} t'attaque → <b>${dmg}</b>`, 'hurt');
-      if (rt.shield > 0) {
-        const absorbed = Math.min(rt.shield, dmg);
-        rt.shield -= absorbed; dmg -= absorbed;
-      }
-      rt.hp -= dmg;
-      if (rt.hp <= 0) this.defeat();
-    },
-
-    victory(a) {
-      const rt = C(), m = rt.monster.def, R = G.Systems.rewards, S = G.state;
-      S.stats.kills++;
-      if (G.report) G.report.kills++;
-      const mult = G.F.monsterXpMult(S.char.level, m.level);
-      const xp = Math.max(1, Math.round(m.xp * mult));
-      const kamas = U.randInt(m.kamas[0], m.kamas[1]);
-      R.addKamas(kamas);
-      G.log(`⚔️ ${m.name} vaincu : +${xp} XP${mult < 1 ? ' <small>(niveau trop élevé)</small>' : ''}, +${kamas} kamas`, 'combat');
-      R.addXp('char', null, xp);
-      R.rollDrops(m.drops || []);
-      feed(`${m.name} est vaincu !`, 'good');
-      // soin après victoire
-      const maxHp = G.Systems.character.stats().maxHp;
-      rt.hp = Math.min(maxHp, rt.hp + maxHp * cfg().healAfterKill);
-      rt.phase = 'respawn';
-    },
-
-    defeat() {
-      const rt = C();
-      G.state.stats.deaths++;
-      if (G.report) G.report.deaths++;
-      rt.hp = 0; rt.phase = 'dead';
-      G.log(`💀 Tu es vaincu par ${rt.monster.def.name}… résurrection en cours.`, 'bad');
-      feed('Tu es à terre !', 'hurt');
-    },
-
-    /** Lance un combat contre un monstre d'une zone. */
-    start(zoneId, monsterId) {
-      G.Engine.start({ type: 'combat', zoneId, monsterId });
-    },
+    start(zoneId) { G.Engine.start({ type: 'combat', zoneId }); },
   });
 
   G.Engine.register('combat', Combat);

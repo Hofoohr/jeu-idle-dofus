@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Espace de noms global, utilitaires, bus d'événements, URLs d'images DofusDB.
+   Espace de noms global, utilitaires, bus d'événements, chemins des images.
    Chargé en premier. Pas de modules ES : le jeu marche aussi en ouvrant
    index.html directement (file://) et sur GitHub Pages.
    ========================================================================== */
@@ -11,20 +11,24 @@
     Systems: {},     // logique de jeu (combat, métiers, inventaire…)
     UI: {},          // interface
     state: null,     // état sauvegardé (voir core/state.js)
-    rt: {},          // état d'exécution NON sauvegardé (combat en cours, timers)
-    silent: false,   // true pendant la simulation hors-ligne (pas de journal)
+    rt: {},          // état d'exécution NON sauvegardé (combat en cours…)
+    silent: false,   // true pendant la simulation hors-ligne (pas de journal ni d'animations)
     report: null,    // accumulateur de gains pendant la simulation hors-ligne
     logs: [],        // journal des événements récents
   });
 
-  /* ---------- Images DofusDB (https://dofusdb.fr) ---------- */
-  const IMG = 'https://api.dofusdb.fr/img/';
-  Game.img = {
-    item: (id) => `${IMG}items/${id}.png`,
-    monster: (id) => `${IMG}monsters/${id}.png`,
-    // Emblème de la classe (le "logo_transparent_" de DofusDB est un filigrane blanc quasi invisible)
-    breed: (id) => `${IMG}breeds/symbol_${id}.png`,
-    breedLogo: (id) => `${IMG}breeds/symbol_${id}.png`,
+  /* ---------- Chemins des images (fichiers fournis par toi dans assets/) ---------- */
+  Game.assets = {
+    classe: (classId) => `assets/classes/${classId}.png`,
+    monstre: (dofusdbId) => `assets/monstres/${dofusdbId}.png`,
+    objet: (icone) => `assets/objets/${icone}`,
+  };
+
+  /** HTML d'une icône d'objet (image locale ; visuel provisoire si le fichier manque). */
+  Game.iconHtml = (itemId, cls = '') => {
+    const it = Game.items[itemId];
+    const ini = Game.util.esc(it.name.slice(0, 2));
+    return `<img class="ic ${cls}" src="${Game.assets.objet(it.icone)}" alt="" loading="lazy" data-ph="${ini}" onerror="Game.UI.imgFail(this)">`;
   };
 
   /* ---------- Bus d'événements ---------- */
@@ -48,11 +52,16 @@
       return `${s} s`;
     },
     esc: (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
-    clone: (o) => JSON.parse(JSON.stringify(o)),
+    /** Tirage pondéré : items = [{weight, …}] → un élément. */
+    weighted(items) {
+      let total = items.reduce((s, i) => s + i.weight, 0), r = Math.random() * total;
+      for (const i of items) { if ((r -= i.weight) < 0) return i; }
+      return items[items.length - 1];
+    },
   };
 
   /* ---------- Journal ---------- */
-  // type : 'info' | 'loot' | 'rare' | 'level' | 'combat' | 'bad' | 'gold'
+  // type : 'info' | 'loot' | 'rare' | 'level' | 'combat' | 'spell' | 'bad' | 'gold'
   Game.log = function (html, type = 'info') {
     if (Game.silent) return;
     const entry = { t: Date.now(), html, type };
@@ -67,6 +76,7 @@
     const D = Game.Data;
     const byId = (arr) => arr.reduce((m, o) => ((m[o.id] = o), m), {});
     Game.classes = byId(D.classes);
+    Game.spells = byId(D.spells);
     Game.items = byId(D.items);
     Game.monsters = byId(D.monsters);
     Game.zones = byId(D.zones);
@@ -75,12 +85,14 @@
     Game.slots = byId(D.slots);
     Game.resources = {};
     D.jobs.forEach((j) => (j.resources || []).forEach((r) => { r.jobId = j.id; Game.resources[r.id] = r; }));
-    // Contrôle de cohérence des données (aide quand on ajoute du contenu)
+    // Contrôles de cohérence (aident quand tu ajoutes du contenu)
     const warn = (m) => console.warn('[data]', m);
+    D.classes.forEach((c) => c.spells.forEach((s) => { if (!Game.spells[s]) warn(`sort inconnu "${s}" (classe ${c.id})`); }));
     D.monsters.forEach((m) => (m.drops || []).forEach((d) => { if (!Game.items[d.item]) warn(`drop inconnu "${d.item}" sur ${m.id}`); }));
-    D.zones.forEach((z) => z.monsters.forEach((id) => { if (!Game.monsters[id]) warn(`monstre inconnu "${id}" dans zone ${z.id}`); }));
+    D.zones.forEach((z) => z.monsters.forEach((e) => { if (!Game.monsters[e.id]) warn(`monstre inconnu "${e.id}" dans zone ${z.id}`); }));
     D.recipes.forEach((r) => {
       if (!Game.items[r.result.item]) warn(`résultat inconnu "${r.result.item}" (${r.id})`);
+      if (!Game.jobs[r.job]) warn(`métier inconnu "${r.job}" (${r.id})`);
       r.ingredients.forEach((i) => { if (!Game.items[i.item]) warn(`ingrédient inconnu "${i.item}" (${r.id})`); });
     });
     D.jobs.forEach((j) => (j.resources || []).forEach((r) => { if (!Game.items[r.item]) warn(`ressource inconnue "${r.item}"`); }));
