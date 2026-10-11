@@ -27,6 +27,6 @@ Game.Data.zones = [
       { id: 'rose_demoniaque', weight: 25 }, { id: 'arakne', weight: 20 },
     ],
     decor: 'assets/decors/champs_astrub.png',
-    decorCss: 'radial-gradient(ellipse 55% 30% at 50% 82%, rgba(255,240,190,.2), transparent 70%), linear-gradient(#a9b6bf 0 30%, transparent 30%), linear-gradient(#6d5a3c 0 42%, transparent 42%), repeating-linear-gradient(90deg, rgba(0,0,0,.14) 0 3px, transparent 3px 34px), linear-gradient(#a08a4a, #75642f)',
+    decorCss: 'radial-gradient(ellipse 55% 30% at 50% 82%, rgba(255,240,190,.2), transparent 70%), linear-gradient(#9cbfd3 0 30%, transparent 30%), linear-gradient(#7fa04a 0 42%, transparent 42%), repeating-linear-gradient(90deg, rgba(0,0,0,.14) 0 3px, transparent 3px 34px), linear-gradient(#93b04e, #6f8f3a)',
   },
 ];
