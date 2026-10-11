@@ -250,3 +250,22 @@ input[type=text], select { background: var(--bg); color: var(--text); border: 1p
 .spell-row .mv { display: flex; flex-direction: column; gap: 2px; }
 .spell-row .mv .btn { padding: 0 7px; font-size: .7rem; line-height: 1.3; }
 .spell-row .grow { flex: 1; min-width: 0; }
+
+/* ---------- Debug / Guide ---------- */
+.grow-in { flex: 1; min-width: 0; width: 100%; }
+.qty-in { width: 88px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; }
+.dbg-out { margin-top: 8px; font-size: .82rem; }
+.guide details { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; padding: 0 14px; }
+.guide summary { cursor: pointer; padding: 12px 0; font-weight: 700; font-size: 1.02rem; color: var(--accent2); }
+.guide details[open] summary { border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.guide .gbody { padding-bottom: 12px; }
+.guide .gbody p, .guide .gbody ul { margin: .4em 0; }
+.guide .gbody li { margin: .25em 0; }
+.guide code, .guide .ex { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: .88em; }
+.guide .ex { display: block; padding: 8px 10px; margin: 8px 0; line-height: 1.6; }
+.guide table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: .9rem; }
+.guide th, .guide td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; }
+.guide th { color: var(--accent2); }
+
+.tag.est { color: var(--accent2); border-color: var(--accent); }
+.spell-row .eff { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }

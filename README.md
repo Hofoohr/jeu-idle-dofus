@@ -107,6 +107,7 @@ js/
     save.js                localStorage, autosave 30 s, export / import
     engine.js              boucle : UNE activité à la fois pour toute l'équipe
   systems/                 ── LOGIQUE DE JEU
+    debug.js               outils de test (/give, /xp, /level, /kamas)
     team.js                caractéristiques, points à répartir, priorité des sorts, stats effectives
     inventory.js           inventaire partagé, instances d'équipement, vente, équiper
     rewards.js             XP / niveaux, kamas, drops (+ journal + récapitulatif hors-ligne)

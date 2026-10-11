@@ -59,12 +59,17 @@
       Dégâts d'un sort = base × (100 + caractéristique) / 100 + Dommages.</small></div>`;
   }
 
+  /** Texte « base → estimé » d'un sort pour le personnage i (stats actuelles, hors résistances). */
   function effectText(i, sp, st) {
-    const v = G.F.spellValue(st, sp);
-    if (sp.kind === 'damage') return `≈ ${Math.round(v + st.dmg)} dégâts${sp.aoe ? ' (zone)' : ''}`;
-    if (sp.kind === 'heal') return `≈ ${Math.round(v)} PV${sp.aoe ? ' (équipe)' : ''}`;
-    if (sp.kind === 'shield') return `≈ ${Math.round(v)} bouclier${sp.aoe ? ' (équipe)' : ''}`;
-    return `-${Math.round(sp.value * 100)} % dégâts ennemis`;
+    const off = G.Data.config.combat.statOffset, stat = st[G.Data.elements[sp.element].stat] || 0;
+    const mult = (off + stat) / 100, v = G.F.spellValue(st, sp);
+    const calc = `${sp.power} × ${U.fmtDec(mult, 2)}`;
+    if (sp.kind === 'damage') {
+      return `<span class="tag">Base ${sp.power}</span> <span class="tag est">≈ ${Math.round(v + st.dmg)} dégâts${sp.aoe ? ' / cible' : ''}</span> <small>(${calc}${st.dmg ? ` + ${st.dmg} dommages` : ''})</small>`;
+    }
+    if (sp.kind === 'heal') return `<span class="tag">Base ${sp.power}</span> <span class="tag est">≈ ${Math.round(v)} PV${sp.aoe ? ' / allié' : ''}</span> <small>(${calc})</small>`;
+    if (sp.kind === 'shield') return `<span class="tag">Base ${sp.power}</span> <span class="tag est">≈ ${Math.round(v)} bouclier${sp.aoe ? ' / allié' : ''}</span> <small>(${calc})</small>`;
+    return `<span class="tag est">−${Math.round(sp.value * 100)} % dégâts ennemis, ${sp.duration} actions</span>`;
   }
 
   function spellsPanel(i) {
@@ -76,7 +81,7 @@
         <span class="mv"><button class="btn sm" ${k === 0 ? 'disabled' : ''} data-act="prio" data-i="${i}" data-id="${id}" data-dir="-1">▲</button><button class="btn sm" ${k === c.priority.length - 1 ? 'disabled' : ''} data-act="prio" data-i="${i}" data-id="${id}" data-dir="1">▼</button></span>
         <div class="grow"><b>${sp.icon} ${sp.name}</b> ${locked ? `<span class="tag lock">🔒 niv. ${G.Systems.team.unlockLevel(i, id)}</span>` : ''}
           ${sp.cd === 0 ? '<span class="tag">attaque de base</span>' : `<span class="tag">recharge ${sp.cd}</span>`} <span class="tag">${el.icon} ${el.name}</span><br>
-          <small class="muted">${sp.desc} · ${locked ? '' : effectText(i, sp, st)}</small></div></div>`;
+          <small class="muted">${sp.desc}</small>${locked ? '' : `<div class="eff">${effectText(i, sp, st)}</div>`}</div></div>`;
     }).join('');
     return `<div class="panel"><h3>Sorts</h3>
       <p class="muted" style="margin-top:0"><small>Parmi les sorts prêts (recharge finie et utiles), le mieux classé est lancé. Soin : un allié sous 50 % · Bouclier : un allié sans bouclier · Zone : au moins 2 ennemis.</small></p>
