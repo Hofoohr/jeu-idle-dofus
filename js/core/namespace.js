@@ -87,7 +87,7 @@
     D.jobs.forEach((j) => (j.resources || []).forEach((r) => { r.jobId = j.id; Game.resources[r.id] = r; }));
     // Contrôles de cohérence (aident quand tu ajoutes du contenu)
     const warn = (m) => console.warn('[data]', m);
-    D.classes.forEach((c) => c.spells.forEach((s) => { if (!Game.spells[s]) warn(`sort inconnu "${s}" (classe ${c.id})`); }));
+    D.classes.forEach((c) => c.spells.forEach((s) => { if (!Game.spells[s.id]) warn(`sort inconnu "${s.id}" (classe ${c.id})`); }));
     D.monsters.forEach((m) => (m.drops || []).forEach((d) => { if (!Game.items[d.item]) warn(`drop inconnu "${d.item}" sur ${m.id}`); }));
     D.zones.forEach((z) => z.monsters.forEach((e) => { if (!Game.monsters[e.id]) warn(`monstre inconnu "${e.id}" dans zone ${z.id}`); }));
     D.recipes.forEach((r) => {

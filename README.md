@@ -93,7 +93,7 @@ js/
   data/                    ── CONTENU (à éditer pour ajouter du contenu)
     config.js              constantes d'équilibrage globales + éléments
     spells.js              sorts (dégâts, soins, boucliers, affaiblissements)
-    classes.js             classes : stats de base / par niveau, sorts par priorité
+    classes.js             classes : arme, sorts (niveau de déblocage, priorité par défaut)
     items.js               emplacements, stats, objets (ressources + équipements)
     monsters.js            monstres + tables de drop (%)
     zones.js               zones, monstres qui y apparaissent (poids), décor
@@ -107,7 +107,7 @@ js/
     save.js                localStorage, autosave 30 s, export / import
     engine.js              boucle : UNE activité à la fois pour toute l'équipe
   systems/                 ── LOGIQUE DE JEU
-    team.js                stats effectives de chaque personnage (classe + niveau + équipement)
+    team.js                caractéristiques, points à répartir, priorité des sorts, stats effectives
     inventory.js           inventaire partagé, instances d'équipement, vente, équiper
     rewards.js             XP / niveaux, kamas, drops (+ journal + récapitulatif hors-ligne)
     combat.js gathering.js crafting.js    les 3 activités possibles
@@ -135,28 +135,28 @@ tools/
 - Les équipements sont des **instances** `{uid, id, mods}` : `mods` accueillera les bonus de forgemagie (déjà additionnés par `Inventory.instanceStats`). `state.runes` et `state.dungeons` sont réservés.
 - Moteur extensible : une nouvelle activité = `Game.Engine.register('type', système)` (`begin/end/interval/tick/describe/barInfo`). Un nouvel écran = `Game.UI.registerView({...})`.
 
-## Formules d'équilibrage
-Constantes : `js/data/config.js` · formules : `js/core/formulas.js` · IA : `js/systems/combat.js`.
+## Règles du jeu et formules d'équilibrage
+Constantes : `js/data/config.js` · formules : `js/core/formulas.js` · combat et IA : `js/systems/combat.js`.
 
-| Sujet | Formule |
+| Sujet | Règle |
 |---|---|
-| Stats d'un personnage | `base + gain/niveau × (niveau-1) + équipement` (vit = PV max, résistances plafonnées à 75 %) |
-| Élément ↔ stat | Terre ↔ Force · Feu ↔ Intelligence · Eau ↔ Chance · Air ↔ Agilité (Crâ = Air, Iop = Terre, Féca = Feu, Pandawa = Eau) |
-| Valeur d'un sort (dégât, soin, bouclier) | `puissance × (1 + 5 % × (niveau-1)) × (1 + stat de l'élément / 100)` |
-| Dégâts sur un monstre | valeur du sort × (1 ± 10 %) × `(1 − rés. de l'élément du monstre / 100)` |
-| Dégâts d'un monstre | `rand(min, max) × (1 − débuff) × (1 − rés. de l'élément / 100)` |
-| Soin / bouclier | soin plafonné aux PV manquants ; bouclier absorbe d'abord, dure `duration` actions de la cible, non cumulable (on garde le plus grand) |
-| Affaiblissement (Pandawa) | −30 % de dégâts de l'ennemi pendant 3 de ses actions |
-| Ordre de jeu | initiative décroissante (fixée au début du combat), 1 action / seconde ; recharge d'un sort = nombre d'actions de son lanceur |
-| IA des sorts | dans l'ordre de la classe : soin si un allié < 50 % PV · bouclier si un allié n'en a pas (donc en début de combat) · affaiblissement si un ennemi ne l'est pas · dégâts sinon (zone seulement si ≥ 2 ennemis) |
+| Personnages | **Toutes les classes ont les mêmes caractéristiques** : niveau 1 = 50 PV et 0 partout (force, agilité, intelligence, chance, sagesse, dommages, **0 % de résistance**). À chaque niveau : +5 PV et +5 points à répartir librement entre force, agilité, intelligence et chance (manuellement, ou automatiquement dans la caractéristique choisie). Résistances, sagesse, dommages et initiative bonus viennent **uniquement des objets**. |
+| Éléments | Terre ↔ Force · Feu ↔ Intelligence · Eau ↔ Chance · Air ↔ Agilité. Chaque sort a un élément, donc une caractéristique associée. |
+| Dégâts d'un sort | `base × (100 + caractéristique associée) / 100 + Dommages`, puis × `(1 − résistance du monstre à l'élément / 100)` (une résistance négative = faiblesse = dégâts augmentés ; ±10 % de variance, réglable). |
+| Soin / bouclier | `base × (100 + caractéristique associée) / 100` (sans Dommages). Un bouclier absorbe d'abord, dure N actions de la cible, non cumulable. |
+| Sorts | 5 par classe : 3 au niveau 1, un au niveau 5, un au niveau 10. Une attaque de base sans recharge, les autres ont une recharge (en actions du lanceur). Le joueur règle la **priorité** de chaque sort (écran Équipe) : parmi les sorts prêts (recharge finie ET utiles : soin si un allié < 50 % PV, bouclier si un allié n'en a pas, affaiblissement si un ennemi ne l'est pas, zone s'il y a ≥ 2 ennemis), le mieux classé est lancé. |
+| Initiative | `force + intelligence + agilité + chance + initiative bonus des objets` (monstres : champ `init`). |
+| Barre d'attaque | Chaque tick (0,1 s), la barre de chaque combattant gagne `40 + initiative × 0,5` (`speedBase`, `speedPerInit`). À 1000, il agit (la barre perd 1000). Si plusieurs sont prêts au même tick, celui qui dépasse le plus 1000 agit en premier, les autres attendent le tick suivant. |
+| Dégâts d'un monstre | `rand(min, max) × (1 − affaiblissement) × (1 − résistance du perso à l'élément / 100)` |
 | Groupes | taille 1/2/3/4 tirée avec poids 15/30/35/20, monstres tirés selon le poids de la zone, 1 « rare » maximum |
 | Défaite de l'équipe | repos de 8 s (régénération progressive) puis nouveau groupe. Après une victoire : alliés tombés relevés à 30 % PV, +10 % PV max pour tous |
 | XP | total du groupe ÷ 4, puis `× max(0,1 ; 1 − 0,08 × (niv. perso − niv. moyen des monstres − 5)) × (1 + Sagesse %)` |
 | XP du niveau L → L+1 | `floor(base × croissance^(L-1))` : personnages 70 × 1,20, métiers 45 × 1,15 |
-| Kamas | somme des tirages uniformes `[min, max]` de chaque monstre |
-| Drops | chaque ligne `drops` tirée indépendamment : `chance` en %, quantité uniforme `[min, max]` |
+| Kamas / drops | somme des tirages uniformes `[min, max]` de chaque monstre ; chaque ligne de `drops` tirée indépendamment (`chance` en %) |
 | Récolte | temps `= base × max(0,5 ; 1 − 0,005 × (niv. métier − 1))` ; chance de récolte ×2 = `0,4 % × niv. métier` |
 | XP de métier | `xp × max(0,1 ; 1 − 0,08 × (niv. métier − niv. requis − 6))` |
 | Hors-ligne | simulation identique au jeu en direct, plafonnée à 12 h (`offlineCapHours`) |
 
-Pour régler : `node tools/balance.js 1,10,20 2` donne, par niveau et par zone (équipe sans équipement), les combats, défaites, XP et kamas par heure.
+Hypothèses à connaître : (1) la formule des dégâts utilise `(100 + caractéristique) / 100` (réglage `statOffset`) : avec `base × caractéristique / 100` tout court, un personnage niveau 1 à 0 en caractéristique ferait 0 dégât ; (2) la barre d'attaque a une vitesse de base (`speedBase`) en plus de l'initiative, sinon un personnage à 0 initiative n'agirait jamais.
+
+Pour régler : `node tools/balance.js 1,10,20 2` donne, par niveau et par zone (équipe sans équipement, points répartis automatiquement), les combats, défaites, XP et kamas par heure.

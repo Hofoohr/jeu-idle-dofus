@@ -1,40 +1,46 @@
 /* ==========================================================================
-   Classes jouables. Pour en ajouter une : copie un bloc, crée le sprite
+   Classes jouables. TOUTES les classes ont les mêmes caractéristiques (voir
+   Game.Data.config.charBase) : seuls changent les sorts, l'arme utilisable et la
+   caractéristique conseillée. Pour en ajouter une : copie un bloc, crée le sprite
    assets/classes/<id>.png et référence des sorts de spells.js.
 
-   base / perLevel : caractéristiques au niveau 1 / gain par niveau
-     vit (PV) · force · intel · agi · chance · sagesse · init (initiative)
-     resTerre · resFeu · resEau · resAir (résistances en %)
-   weapon : type d'arme utilisable (arc, epee, baton, baguette)
-   spells : par ordre de PRIORITÉ pour l'IA (voir spells.js)
+   weapon   : type d'arme utilisable (arc, epee, baton, baguette)
+   mainStat : caractéristique conseillée (répartition automatique par défaut)
+   spells   : { id, unlock } — `unlock` = niveau d'obtention (3 sorts au niv. 1, un au niv. 5, un au niv. 10).
+              L'ordre de la liste = priorité PAR DÉFAUT (modifiable par le joueur).
+              Chaque classe a une attaque de base (cd 0) et des sorts à recharge.
    ========================================================================== */
 Game.Data.classes = [
   {
-    id: 'cra', name: 'Crâ', role: 'Dégâts à distance', weapon: 'arc', color: '#7cb342',
-    desc: 'Archer redoutable : dégâts à distance très élevés, mais peu de PV.',
-    base:     { vit: 45, force: 0, intel: 0, agi: 30, chance: 0, sagesse: 0, init: 40, resTerre: 0, resFeu: 0, resEau: 0, resAir: 0 },
-    perLevel: { vit: 5,  force: 0, intel: 0, agi: 4,  chance: 0, sagesse: 0.5, init: 2, resTerre: 0, resFeu: 0, resEau: 0, resAir: 0 },
-    spells: ['fleche_dispersion', 'tir_puissant', 'fleche_magique'],
+    id: 'cra', name: 'Crâ', role: 'Dégâts à distance', weapon: 'arc', mainStat: 'agi', color: '#7cb342',
+    desc: 'Archer redoutable : beaucoup de dégâts à distance, y compris de zone. Élément Air (Agilité).',
+    spells: [
+      { id: 'tir_critique', unlock: 10 }, { id: 'fleche_explosive', unlock: 5 },
+      { id: 'tir_puissant', unlock: 1 }, { id: 'fleche_dispersion', unlock: 1 }, { id: 'fleche_magique', unlock: 1 },
+    ],
   },
   {
-    id: 'iop', name: 'Iop', role: 'Dégâts en mêlée', weapon: 'epee', color: '#e53935',
-    desc: 'Guerrier impétueux : gros dégâts au corps à corps, PV moyens.',
-    base:     { vit: 70, force: 30, intel: 0, agi: 0, chance: 0, sagesse: 0, init: 30, resTerre: 3, resFeu: 0, resEau: 0, resAir: 0 },
-    perLevel: { vit: 8,  force: 4, intel: 0, agi: 0, chance: 0, sagesse: 0.5, init: 1.5, resTerre: 0.2, resFeu: 0, resEau: 0, resAir: 0 },
-    spells: ['colere_iop', 'epee_divine', 'pression'],
+    id: 'iop', name: 'Iop', role: 'Dégâts en mêlée', weapon: 'epee', mainStat: 'force', color: '#e53935',
+    desc: 'Guerrier impétueux : gros coups au corps à corps. Élément Terre (Force).',
+    spells: [
+      { id: 'epee_celeste', unlock: 10 }, { id: 'colere_iop', unlock: 5 },
+      { id: 'epee_divine', unlock: 1 }, { id: 'tempete_puissance', unlock: 1 }, { id: 'pression', unlock: 1 },
+    ],
   },
   {
-    id: 'feca', name: 'Féca', role: 'Protection', weapon: 'baton', color: '#8d6e63',
-    desc: 'Protecteur : applique des boucliers sur ses alliés. Dégâts faibles.',
-    base:     { vit: 80, force: 0, intel: 25, agi: 0, chance: 0, sagesse: 0, init: 20, resTerre: 3, resFeu: 3, resEau: 3, resAir: 3 },
-    perLevel: { vit: 9,  force: 0, intel: 3.5, agi: 0, chance: 0, sagesse: 0.5, init: 1, resTerre: 0.2, resFeu: 0.2, resEau: 0.2, resAir: 0.2 },
-    spells: ['rempart', 'armure_terrestre', 'attaque_naturelle'],
+    id: 'feca', name: 'Féca', role: 'Protection', weapon: 'baton', mainStat: 'intel', color: '#8d6e63',
+    desc: 'Protecteur : applique des boucliers sur ses alliés. Élément Feu (Intelligence).',
+    spells: [
+      { id: 'immunite', unlock: 10 }, { id: 'glyphe_agressif', unlock: 5 },
+      { id: 'rempart', unlock: 1 }, { id: 'armure_terrestre', unlock: 1 }, { id: 'attaque_naturelle', unlock: 1 },
+    ],
   },
   {
-    id: 'pandawa', name: 'Pandawa', role: 'Soutien', weapon: 'baguette', color: '#26a69a',
-    desc: 'Soutien robuste : soigne l\'allié le plus blessé et affaiblit les ennemis.',
-    base:     { vit: 90, force: 0, intel: 0, agi: 0, chance: 25, sagesse: 5, init: 10, resTerre: 0, resFeu: 0, resEau: 3, resAir: 0 },
-    perLevel: { vit: 10, force: 0, intel: 0, agi: 0, chance: 3.5, sagesse: 0.5, init: 1, resTerre: 0, resFeu: 0, resEau: 0.2, resAir: 0 },
-    spells: ['lait_bambou', 'epouvante', 'vague_a_lame'],
+    id: 'pandawa', name: 'Pandawa', role: 'Soutien', weapon: 'baguette', mainStat: 'chance', color: '#26a69a',
+    desc: 'Soutien : soigne l\'allié le plus blessé et affaiblit les ennemis. Élément Eau (Chance).',
+    spells: [
+      { id: 'lait_revigorant', unlock: 10 }, { id: 'souffle_alcoolise', unlock: 5 },
+      { id: 'lait_bambou', unlock: 1 }, { id: 'epouvante', unlock: 1 }, { id: 'vague_a_lame', unlock: 1 },
+    ],
   },
 ];

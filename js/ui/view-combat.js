@@ -17,14 +17,14 @@
     const m = G.monsters[entry.id];
     const total = zone.monsters.reduce((s, e) => s + e.weight, 0);
     const el = G.Data.elements[m.attack.element];
-    const res = Object.keys(m.res || {}).map((k) => `${G.Data.elements[k].icon}${m.res[k]}%`).join(' ');
+    const res = Object.keys(m.res || {}).map((k) => `<span class="${m.res[k] < 0 ? 'weak' : ''}">${G.Data.elements[k].icon}${m.res[k] > 0 ? '+' : ''}${m.res[k]}%</span>`).join(' ');
     return `<div class="panel mon-card">
       <div class="mon-head"><div class="sprite-box sm">${UI.monsterSprite(m)}</div>
         <div><h3>${m.name}</h3><span class="tag">Niv. ${m.level}</span>${m.rare ? ' <span class="tag rare">Rare</span>' : ''}
         <div class="muted"><small>Apparition ~${Math.round(entry.weight / total * 100)} %</small></div></div></div>
       <div class="mon-stats">
-        <span>❤️ ${U.fmt(m.hp)} PV</span><span>⚡ Init. ${m.init}</span>
-        <span>${el.icon} ${m.attack.dmg[0]}–${m.attack.dmg[1]} (${el.name})</span><span>🛡️ ${res || 'aucune rés.'}</span>
+        <span>❤️ ${U.fmt(m.hp)} PV</span><span>⚡ Init. ${m.init} (1 action / ${U.fmtDec(G.Data.config.combat.atbMax / G.F.atbSpeed(m.init) * G.Data.config.combat.tickSeconds, 1)} s)</span>
+        <span>${el.icon} ${m.attack.dmg[0]}–${m.attack.dmg[1]} (${el.name})</span><span title="Résistances (+) et faiblesses (−, dégâts augmentés)">🛡️ ${res || 'aucune'}</span>
         <span>✨ ${m.xp} XP</span><span>💰 ${m.kamas[0]}–${m.kamas[1]} k</span>
       </div>
       <div class="drops">${(m.drops || []).filter((d) => d.chance > 0).map(dropRow).join('')}</div>

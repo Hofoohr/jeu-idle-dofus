@@ -6,6 +6,18 @@
   'use strict';
   const G = Game;
 
+  /** Nouveau personnage niveau 1 : aucune caractéristique, rien d'équipé. */
+  G.newChar = function (name, classId) {
+    const cls = G.classes[classId];
+    return {
+      name, classId, level: 1, xp: 0, equipped: {},
+      stat: { force: 0, agi: 0, intel: 0, chance: 0 },   // points déjà répartis
+      points: 0,                                         // points à répartir
+      autoStat: cls.mainStat,                            // répartition automatique à chaque niveau (null = manuelle)
+      priority: cls.spells.map((s) => s.id),             // priorité des sorts (premier = plus prioritaire)
+    };
+  };
+
   /** team : [{ name, classId } × 4] */
   G.newState = function (team) {
     const now = Date.now();
@@ -14,7 +26,7 @@
     return {
       v: G.Data.config.saveVersion,
       createdAt: now, lastSeen: now,
-      team: team.map((t) => ({ name: t.name, classId: t.classId, level: 1, xp: 0, equipped: {} })),
+      team: team.map((t) => G.newChar(t.name, t.classId)),
       jobs,               // métiers du compte
       kamas: 0,
       items: {},          // ressources empilables { itemId: quantité }
@@ -42,7 +54,14 @@
       });
     };
     const team = s.team; delete fresh.team; fill(s, fresh);
-    team.forEach((c) => { c.equipped = c.equipped || {}; c.level = c.level || 1; c.xp = c.xp || 0; });
+    team.forEach((c) => {
+      const d = G.newChar(c.name, c.classId);
+      Object.keys(d).forEach((k) => { if (c[k] === undefined) c[k] = d[k]; });
+      ['force', 'agi', 'intel', 'chance'].forEach((k) => { c.stat[k] = c.stat[k] || 0; });
+      // priorité : retire les sorts inconnus, ajoute les nouveaux
+      const ids = G.classes[c.classId].spells.map((x) => x.id);
+      c.priority = c.priority.filter((id) => ids.includes(id)).concat(ids.filter((id) => !c.priority.includes(id)));
+    });
     // Nettoyage : objets / équipements dont la définition a disparu
     Object.keys(s.items).forEach((id) => { if (!G.items[id] || !(s.items[id] > 0)) delete s.items[id]; });
     s.gear = s.gear.filter((g) => G.items[g.id]);

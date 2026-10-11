@@ -47,7 +47,7 @@
     /** Avance la simulation de `dt` secondes (temps réel ou hors-ligne). */
     advance(dt) {
       let t = this.timer + dt, guard = 0;
-      while (G.state.action && guard++ < 400000) {
+      while (G.state.action && guard++ < 3000000) {
         const sys = this.systems[G.state.action.type];
         const iv = sys.interval(G.state.action);
         if (t < iv) break;

@@ -1,29 +1,36 @@
 /* ==========================================================================
    Combat automatique d'une équipe de 4 contre un groupe de 1 à 4 monstres.
 
-   - Chaque combattant agit à son tour selon son initiative (ordre fixé au début
-     du combat), une action toutes les `actionSeconds` (≈ 1 s).
-   - Phases : 'fight' (combat) → 'between' (pause avant le groupe suivant)
-              → si toute l'équipe tombe : 'rest' (repos, régénération) → nouveau groupe.
-   - Les événements visuels (animations) sont émis via Game.emit('fx', …), sauf
-     pendant la simulation hors-ligne (Game.silent).
+   BARRE D'ATTAQUE : chaque combattant (personnage ou monstre) a une barre de 0 à 1000.
+   À chaque tick (0,1 s) elle gagne  speedBase + initiative × speedPerInit.
+   À 1000 le combattant agit (et la barre perd 1000). Si plusieurs sont prêts au même tick,
+   celui qui dépasse le plus 1000 agit en premier, les autres attendent le tick suivant.
+
+   Phases : 'fight' (combat) → 'between' (pause avant le groupe suivant)
+            → si toute l'équipe tombe : 'rest' (repos, régénération) → nouveau groupe.
+   Les événements visuels (animations) sont émis via Game.emit('fx', …), sauf
+   pendant la simulation hors-ligne (Game.silent).
    ========================================================================== */
 (function () {
   'use strict';
   const G = Game, U = G.util;
   const cfg = () => G.Data.config.combat;
-  const EL = () => G.Data.elements;
   const C = () => G.rt.combat;
   const fx = (e) => { if (!G.silent) G.emit('fx', e); };
 
   /* ---------- Création des combattants ---------- */
+  function makeFighter(o) {
+    return Object.assign({ shield: 0, shieldTurns: 0, debuff: null, cds: {}, alive: true,
+      atb: Math.random() * cfg().startAtbMax }, o);
+  }
+
   function makePartyFighters() {
     const rt = C();
     return G.state.team.map((c, i) => {
       const st = G.Systems.team.stats(i);
       const hp = rt.partyHp[i] === undefined ? st.maxHp : Math.min(rt.partyHp[i], st.maxHp);
-      return { id: 'p' + i, side: 'party', idx: i, name: c.name, classId: c.classId, level: c.level, stats: st,
-        maxHp: st.maxHp, hp, alive: hp > 0, shield: 0, shieldTurns: 0, debuff: null, cds: {}, init: st.init };
+      return makeFighter({ id: 'p' + i, side: 'party', idx: i, name: c.name, classId: c.classId, level: c.level,
+        stats: st, maxHp: st.maxHp, hp, alive: hp > 0, init: st.initiative, speed: G.F.atbSpeed(st.initiative) });
     });
   }
 
@@ -33,20 +40,18 @@
     const list = [];
     for (let i = 0; i < size; i++) {
       let pool = zone.monsters;
-      if (list.some((m) => m.rare)) pool = pool.filter((e) => !Game.monsters[e.id].rare);
+      if (list.some((m) => m.rare)) pool = pool.filter((e) => !G.monsters[e.id].rare);
       list.push(G.monsters[U.weighted(pool).id]);
     }
-    return list.map((m, i) => ({ id: 'e' + i, side: 'enemy', def: m, name: m.name, level: m.level,
-      maxHp: m.hp, hp: m.hp, alive: true, shield: 0, shieldTurns: 0, debuff: null, cds: {}, init: m.init }));
+    return list.map((m, i) => makeFighter({ id: 'e' + i, side: 'enemy', def: m, name: m.name, level: m.level,
+      maxHp: m.hp, hp: m.hp, init: m.init, speed: G.F.atbSpeed(m.init) }));
   }
 
   function startFight(a) {
     const rt = C();
     rt.party = makePartyFighters();
     rt.enemies = makeEnemies(G.zones[a.zoneId]);
-    // ordre de jeu : initiative décroissante (égalités tirées au hasard)
-    rt.order = rt.party.concat(rt.enemies).map((f) => ({ f, k: f.init + Math.random() })).sort((x, y) => y.k - x.k).map((x) => x.f);
-    rt.turnIdx = -1;
+    rt.order = rt.party.concat(rt.enemies);
     rt.phase = 'fight';
     rt.fightNo++;
     fx({ t: 'spawn' });
@@ -58,38 +63,36 @@
   const lowest = (arr, fn) => arr.reduce((b, x) => (b === null || fn(x) < fn(b) ? x : b), null);
 
   /**
-   * Choisit le sort et les cibles. Parcourt les sorts de la classe dans l'ordre ;
-   * le premier dont la condition est remplie est lancé (voir spells.js).
+   * Parmi les sorts obtenus, prêts (recharge finie) et utiles, lance celui qui a la meilleure
+   * priorité (réglée par le joueur dans l'écran Équipe). L'attaque de base est toujours prête.
    */
   function chooseSpell(f) {
-    const cls = G.classes[f.classId], rt = C();
+    const rt = C(), team = G.Systems.team, ch = G.state.team[f.idx];
     const allies = alive(rt.party), foes = alive(rt.enemies);
-    for (const id of cls.spells) {
+    const open = team.unlocked(f.idx);
+    for (const id of ch.priority) {
+      if (!open.includes(id)) continue;
       const sp = G.spells[id];
       if (sp.cd > 0 && (f.cds[id] || 0) > 0) continue;
       if (sp.kind === 'heal') {
         const t = lowest(allies, ratio);
-        if (t && ratio(t) < cfg().soloHealThreshold) return { sp, targets: [t] };
+        if (t && ratio(t) < cfg().healThreshold) return { sp, targets: sp.aoe ? allies : [t] };
       } else if (sp.kind === 'shield') {
         const cand = allies.filter((a) => a.shield <= 0);
-        if (!cand.length) continue;
-        return { sp, targets: sp.aoe ? cand : [lowest(cand, ratio)] };
+        if (cand.length) return { sp, targets: sp.aoe ? cand : [lowest(cand, ratio)] };
       } else if (sp.kind === 'debuff') {
         const cand = foes.filter((e) => !e.debuff);
-        if (!cand.length) continue;
-        const t = cand.reduce((b, e) => (e.def.attack.dmg[1] > b.def.attack.dmg[1] ? e : b));
-        return { sp, targets: [t] };
+        if (cand.length) return { sp, targets: [cand.reduce((b, e) => (e.def.attack.dmg[1] > b.def.attack.dmg[1] ? e : b))] };
       } else if (sp.kind === 'damage') {
         if (sp.aoe && foes.length < 2) continue;
         return { sp, targets: sp.aoe ? foes : [lowest(foes, (e) => e.hp)] };
       }
     }
-    // Attaque de base (dernier sort, cd 0)
-    return { sp: G.spells[cls.spells[cls.spells.length - 1]], targets: [lowest(foes, (e) => e.hp)] };
+    return { sp: team.basicSpell(f.idx), targets: [lowest(foes, (e) => e.hp)] };
   }
 
   /* ---------- Effets ---------- */
-  /** Inflige des dégâts en consommant d'abord le bouclier. Retourne les PV réellement perdus. */
+  /** Inflige des dégâts en consommant d'abord le bouclier. */
   function applyDamage(t, dmg) {
     const absorbed = Math.min(t.shield, dmg);
     t.shield -= absorbed;
@@ -98,32 +101,29 @@
     if (absorbed > 0) fx({ t: 'num', id: t.id, kind: 'shield', v: absorbed, absorb: true });
     if (real > 0) fx({ t: 'num', id: t.id, kind: 'dmg', v: real });
     if (t.hp <= 0) { t.hp = 0; t.alive = false; t.shield = 0; fx({ t: 'dead', id: t.id }); }
-    return real;
   }
 
   function cast(f, sp, targets) {
     if (sp.cd > 0) f.cds[sp.id] = sp.cd;
     fx({ t: 'act', id: f.id });
     const who = `<b>${U.esc(f.name)}</b>`;
-    const lvl = f.level;
     if (sp.kind === 'damage') {
-      const parts = targets.map((t) => { const d = G.F.spellDamage(f.stats, lvl, sp, t.def); applyDamage(t, d); return d; });
+      const parts = targets.map((t) => { const d = G.F.spellDamage(f.stats, sp, t.def); applyDamage(t, d); return d; });
       G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets.length > 1 ? targets.length + ' ennemis' : targets[0].name} : <b>${parts.join(' + ')}</b>`, 'spell');
     } else if (sp.kind === 'heal') {
-      targets.forEach((t) => {
-        const h = Math.round(G.F.spellValue(f.stats, lvl, sp) * (1 + U.rand(-cfg().damageVariance, cfg().damageVariance)));
+      const base = G.F.spellValue(f.stats, sp);
+      const parts = targets.map((t) => {
+        const h = Math.round(base * (1 + U.rand(-cfg().damageVariance, cfg().damageVariance)));
         const real = Math.min(h, t.maxHp - t.hp);
         t.hp += real;
         fx({ t: 'num', id: t.id, kind: 'heal', v: real });
-        G.log(`${sp.icon} ${who} lance ${sp.name} → ${U.esc(t.name)} : <b>+${real} PV</b>`, 'spell');
+        return real;
       });
+      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets.length > 1 ? 'toute l\'équipe' : U.esc(targets[0].name)} : <b>+${parts.join(' / +')} PV</b>`, 'spell');
     } else if (sp.kind === 'shield') {
-      targets.forEach((t) => {
-        const v = Math.round(G.F.spellValue(f.stats, lvl, sp));
-        t.shield = Math.max(t.shield, v); t.shieldTurns = sp.duration;
-        fx({ t: 'num', id: t.id, kind: 'shield', v });
-      });
-      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets.length > 1 ? 'toute l\'équipe' : U.esc(targets[0].name)} : <b>bouclier ${Math.round(G.F.spellValue(f.stats, lvl, sp))}</b>`, 'spell');
+      const v = Math.round(G.F.spellValue(f.stats, sp));
+      targets.forEach((t) => { t.shield = Math.max(t.shield, v); t.shieldTurns = sp.duration; fx({ t: 'num', id: t.id, kind: 'shield', v }); });
+      G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets.length > 1 ? 'toute l\'équipe' : U.esc(targets[0].name)} : <b>bouclier ${v}</b>`, 'spell');
     } else if (sp.kind === 'debuff') {
       targets.forEach((t) => { t.debuff = { value: sp.value, turns: sp.duration }; fx({ t: 'text', id: t.id, text: '-' + Math.round(sp.value * 100) + '% dég.', kind: 'debuff' }); });
       G.log(`${sp.icon} ${who} lance ${sp.name} → ${targets[0].name} : <b>dégâts -${Math.round(sp.value * 100)} %</b>`, 'spell');
@@ -148,21 +148,20 @@
     const kamas = foes.reduce((s, e) => s + U.randInt(e.def.kamas[0], e.def.kamas[1]), 0);
     const avgLvl = foes.reduce((s, e) => s + e.level, 0) / foes.length;
     R.addKamas(kamas);
-    const names = foes.map((e) => e.name).join(', ');
     const gains = S.team.map((c, i) => {
       const wis = G.Systems.team.stats(i).sagesse * cfg().sagesseXpPct / 100;
       return Math.max(1, Math.round((totalXp / n) * G.F.monsterXpMult(c.level, avgLvl) * (1 + wis)));
     });
-    G.log(`⚔️ Victoire contre ${names} : +${U.fmt(gains[0])} XP chacun (≈), +${U.fmt(kamas)} kamas`, 'combat');
+    G.log(`⚔️ Victoire contre ${foes.map((e) => e.name).join(', ')} : +${U.fmt(gains[0])} XP chacun (≈), +${U.fmt(kamas)} kamas`, 'combat');
     gains.forEach((g, i) => R.addXp('char', i, g));
     foes.forEach((e) => R.rollDrops(e.def.drops || []));
     // relève les alliés tombés et soigne un peu
     rt.party.forEach((p) => {
       const max = G.Systems.team.stats(p.idx).maxHp;
-      let hp = p.hp <= 0 ? max * cfg().reviveHpPct : p.hp;
+      const hp = p.hp <= 0 ? max * cfg().reviveHpPct : p.hp;
       rt.partyHp[p.idx] = Math.min(max, Math.round(hp + max * cfg().healAfterFight));
     });
-    rt.phase = 'between';
+    rt.phase = 'between'; rt.wait = cfg().spawnSeconds;
     fx({ t: 'victory' });
   }
 
@@ -181,18 +180,14 @@
     valid(a) { const z = G.zones[a.zoneId]; return !!z && G.Systems.team.avgLevel() >= z.minLevel; },
 
     begin(a) {
-      G.rt.combat = { phase: 'between', partyHp: [], party: [], enemies: [], order: [], turnIdx: -1, fightNo: 0, restLeft: 0 };
+      G.rt.combat = { phase: 'between', partyHp: [], party: [], enemies: [], order: [], fightNo: 0, restLeft: 0, wait: 0 };
       startFight(a);
     },
 
     end() { G.rt.combat = null; fx({ t: 'spawn' }); },
 
-    interval() {
-      const rt = C();
-      if (rt.phase === 'rest') return 1;
-      if (rt.phase === 'between') return cfg().spawnSeconds;
-      return cfg().actionSeconds;
-    },
+    /** Un tick de combat = tickSeconds (0,1 s). */
+    interval() { return cfg().tickSeconds; },
 
     describe(a) {
       const z = G.zones[a.zoneId], rt = C();
@@ -209,21 +204,29 @@
     },
 
     tick(a) {
-      const rt = C();
-      if (rt.phase === 'between') { startFight(a); return; }
+      const rt = C(), dt = cfg().tickSeconds;
+      if (rt.phase === 'between') { if ((rt.wait -= dt) <= 0) startFight(a); return; }
       if (rt.phase === 'rest') {
-        rt.party.forEach((p) => { p.hp = Math.min(p.maxHp, p.hp + p.maxHp / cfg().restSeconds); p.alive = p.hp > 0; });
-        if (--rt.restLeft <= 0) {
+        rt.party.forEach((p) => { p.hp = Math.min(p.maxHp, p.hp + p.maxHp * dt / cfg().restSeconds); p.alive = p.hp > 0; });
+        if ((rt.restLeft -= dt) <= 0) {
           rt.party.forEach((p) => (rt.partyHp[p.idx] = p.maxHp));
           startFight(a);
         }
         return;
       }
-      // prochain combattant vivant dans l'ordre d'initiative
-      let f, guard = 0;
-      do { rt.turnIdx = (rt.turnIdx + 1) % rt.order.length; f = rt.order[rt.turnIdx]; } while (!f.alive && guard++ < 16);
-      // début de tour : recharges, durée du bouclier et du débuff
-      Object.keys(f.cds).forEach((k) => { if (f.cds[k] > 0) f.cds[k]--; });
+      // Remplissage des barres d'attaque ; le combattant qui dépasse le plus 1000 agit.
+      const max = cfg().atbMax;
+      let f = null;
+      for (let k = 0; k < rt.order.length; k++) {
+        const x = rt.order[k];
+        if (!x.alive) continue;
+        x.atb += x.speed;
+        if (x.atb >= max && (f === null || x.atb > f.atb)) f = x;
+      }
+      if (!f) return;
+      f.atb -= max;
+      // début d'action : recharges, durée du bouclier et du débuff
+      for (const k in f.cds) if (f.cds[k] > 0) f.cds[k]--;
       if (f.shieldTurns > 0 && --f.shieldTurns === 0) f.shield = 0;
       if (f.debuff && --f.debuff.turns <= 0) f.debuff = null;
 

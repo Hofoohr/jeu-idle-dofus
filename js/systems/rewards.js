@@ -25,6 +25,7 @@
           const lv = G.report.levels[key] = G.report.levels[key] || { from: ent.level - 1, to: ent.level };
           lv.to = ent.level;
         }
+        if (kind === 'char') G.Systems.team.onLevelUp(id);
         const name = kind === 'char' ? U.esc(ent.name) : G.jobs[id].name;
         G.log(`🎉 <b>${name}</b> passe niveau <b>${ent.level}</b> !`, 'level');
       }

@@ -137,6 +137,8 @@ input[type=text] { background: var(--bg); color: var(--text); border: 1px solid 
 .hpbar .hp { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(#e0694f, #b53a25); transition: width .25s; }
 .hpbar .sh { position: absolute; top: 0; bottom: 0; background: linear-gradient(#7cc4ee, #3f8fc4); transition: width .25s, left .25s; }
 .hpbar b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: .62rem; color: #fff; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
+.atb { width: 100%; height: 4px; background: #1a0f0a; border: 1px solid #000; border-radius: 2px; overflow: hidden; }
+.atb i { display: block; height: 100%; width: 0; background: linear-gradient(#ffe08a, #e8a93a); }
 .unit.dead { opacity: .22; filter: grayscale(1); }
 .unit.acting-r { animation: lunge-r .5s ease; z-index: 3; } .unit.acting-l { animation: lunge-l .5s ease; z-index: 3; }
 @keyframes lunge-r { 0%, 100% { transform: translateX(0); } 40% { transform: translateX(26px); } }
@@ -230,3 +232,21 @@ input[type=text], select { background: var(--bg); color: var(--text); border: 1p
   #toast { bottom: 190px; }
   .create-row { flex-direction: column; align-items: stretch; }
 }
+
+.weak { color: #8fcf6f; font-weight: 700; }
+
+/* ---------- Écran Équipe : caractéristiques et sorts ---------- */
+.team-grid { grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); align-items: start; }
+.team-grid .panel { margin: 0; }
+.tab .pts, .points.has b { color: var(--gold); }
+.points { font-size: .9rem; }
+.points.has { background: rgba(242,193,78,.12); border: 1px solid var(--gold); border-radius: 8px; padding: 4px 10px; }
+.btn-cell { text-align: right; white-space: nowrap; }
+.btn-cell .btn { margin-left: 3px; }
+.auto-sel { padding: 4px 8px !important; font-size: .85rem; }
+.spell-row { display: flex; align-items: center; gap: 8px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg2); margin-bottom: 6px; }
+.spell-row.locked { opacity: .5; }
+.spell-row .rank { width: 1.4rem; text-align: center; color: var(--accent2); font-weight: 800; }
+.spell-row .mv { display: flex; flex-direction: column; gap: 2px; }
+.spell-row .mv .btn { padding: 0 7px; font-size: .7rem; line-height: 1.3; }
+.spell-row .grow { flex: 1; min-width: 0; }

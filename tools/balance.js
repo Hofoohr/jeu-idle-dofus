@@ -1,12 +1,13 @@
 /* Simulation d'équilibrage : node tools/balance.js [niveaux] [heures]
-   Équipe Crâ / Iop / Féca / Pandawa, SANS équipement, au niveau donné, sur chaque zone.
+   Équipe Crâ / Iop / Féca / Pandawa, SANS équipement, points répartis automatiquement
+   dans la caractéristique de la classe, au niveau donné, sur chaque zone.
    Affiche combats, défaites, XP gagnée (par perso) et kamas par heure de jeu. */
 const G = require('./load.js');
 const levels = (process.argv[2] || '1,5,10,15').split(',').map(Number);
 const hours = +(process.argv[3] || 1);
 function run(level, zoneId) {
   G.state = G.newState(G.testTeam());
-  G.state.team.forEach((c) => (c.level = level));
+  G.state.team.forEach((c, i) => { c.level = level; c.points = 5 * (level - 1); G.Systems.team.autoAllocate(i); });
   G.Systems.team.invalidate();
   G.Engine.start({ type: 'combat', zoneId });
   G.silent = true; G.report = G.Offline.newReport(hours * 3600);

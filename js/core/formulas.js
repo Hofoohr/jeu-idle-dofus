@@ -26,19 +26,30 @@
       return over <= 0 ? 1 : Math.max(p.min, 1 - over * p.perLevel);
     },
 
-    /** Valeur d'un sort (dégâts, soin ou bouclier) avant variance et résistances. */
-    spellValue(stats, level, spell) {
+    /**
+     * Valeur de base d'un sort (avant dommages fixes, variance et résistances) :
+     *   power × (statOffset + caractéristique associée) / 100
+     * (statOffset = 100 : à 0 en caractéristique, le sort fait ses dégâts de base.)
+     */
+    spellValue(stats, spell) {
       const c = G.Data.config.combat;
       const stat = stats[G.Data.elements[spell.element].stat] || 0;
-      return spell.power * (1 + c.spellLevelScale * (level - 1)) * (1 + stat / 100);
+      return spell.power * (c.statOffset + stat) / 100;
     },
 
-    /** Dégâts d'un sort sur un monstre : valeur × variance × (1 - résistance de l'élément). */
-    spellDamage(stats, level, spell, monster) {
+    /** Dégâts d'un sort sur un monstre : (valeur + Dommages) × variance × (1 − résistance de l'élément). */
+    spellDamage(stats, spell, monster) {
       const c = G.Data.config.combat;
+      // résistance positive plafonnée ; négative = faiblesse (dégâts augmentés)
       const res = Math.min(c.resistCap, (monster.res && monster.res[spell.element]) || 0);
-      const d = this.spellValue(stats, level, spell) * (1 + U.rand(-c.damageVariance, c.damageVariance)) * (1 - res / 100);
+      const d = (this.spellValue(stats, spell) + (stats.dmg || 0)) * (1 + U.rand(-c.damageVariance, c.damageVariance)) * (1 - res / 100);
       return Math.max(1, Math.round(d));
+    },
+
+    /** Vitesse de la barre d'attaque, par tick : speedBase + initiative × speedPerInit. */
+    atbSpeed(initiative) {
+      const c = G.Data.config.combat;
+      return c.speedBase + initiative * c.speedPerInit;
     },
 
     /** Dégâts d'une attaque de monstre sur un personnage (débuff = fraction retirée). */
